@@ -20,4 +20,6 @@ interface ICToken {
         );
 
     function comptroller() external view returns (address);
+
+    function borrowBalanceCurrent(address account) external returns (uint256);
 }

@@ -34,12 +34,15 @@ contract EasyConverter {
     ) {
         uniswapV2Router = _uniswapV2Router;
         wrappedNativeAddress = _wrappedNativeAddress;
-        sourceToken=_sourceToken;
-        destinationToken=_destinationToken;
+        sourceToken = _sourceToken;
+        destinationToken = _destinationToken;
     }
-    
+
     function convert(uint256 amount) external {
-        require(IERC20(sourceToken).balanceOf(address(this)) >= amount, "amount not enough");
+        require(
+            IERC20(sourceToken).balanceOf(address(this)) >= amount,
+            "amount not enough"
+        );
         IERC20(sourceToken).safeApprove(uniswapV2Router, amount);
         address[] memory paths;
         paths = new address[](3);
@@ -47,10 +50,11 @@ contract EasyConverter {
         paths[1] = wrappedNativeAddress;
         paths[2] = destinationToken;
         IUniswapV2Router(uniswapV2Router).swapExactTokensForTokens(
-                    amount,
-                    0,
-                    paths,
-                    msg.sender,
-                    block.timestamp);
+            amount,
+            0,
+            paths,
+            msg.sender,
+            block.timestamp
+        );
     }
 }

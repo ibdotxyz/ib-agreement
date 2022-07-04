@@ -63,6 +63,15 @@ contract MockCyToken is ICToken {
         return (0, 0, _borrowBalances[account], 0);
     }
 
+    function borrowBalanceCurrent(address account)
+        external
+        override
+        returns (uint256)
+    {
+        _underlying = _underlying; // Shh
+        return _borrowBalances[account];
+    }
+
     function comptroller() external view override returns (address) {
         return _comptroller;
     }
