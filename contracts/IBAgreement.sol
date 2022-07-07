@@ -23,7 +23,6 @@ contract IBAgreementV2 is ReentrancyGuard {
     uint256 public immutable liquidationFactor;
     IPriceFeed public priceFeed;
     mapping(ICToken => IConverter) public converters;
-    mapping(address => bool) public allowedMarkets;
 
     modifier onlyBorrower() {
         require(msg.sender == borrower, "caller is not the borrower");
@@ -39,13 +38,6 @@ contract IBAgreementV2 is ReentrancyGuard {
         require(msg.sender == governor, "caller is not the governor");
         _;
     }
-
-    modifier marketAllowed(address cy) {
-        require(allowedMarkets[cy], "market not allowed");
-        _;
-    }
-
-    event AllowedMarketsUpdated(address, bool);
 
     /**
      * @dev Sets the values for {executor}, {borrower}, {governor}, {comptroller}, {collateral}, {priceFeed}, {collateralFactor}, and {liquidationFactor}.
@@ -149,7 +141,6 @@ contract IBAgreementV2 is ReentrancyGuard {
         external
         nonReentrant
         onlyBorrower
-        marketAllowed(address(cy))
     {
         borrowInternal(cy, amount);
     }
@@ -158,12 +149,7 @@ contract IBAgreementV2 is ReentrancyGuard {
      * @notice Borrow max from cyToken with current price
      * @param cy The cyToken
      */
-    function borrowMax(ICToken cy)
-        external
-        nonReentrant
-        onlyBorrower
-        marketAllowed(address(cy))
-    {
+    function borrowMax(ICToken cy) external nonReentrant onlyBorrower {
         (, , uint256 borrowBalance, ) = cy.getAccountSnapshot(address(this));
 
         IPriceOracle oracle = IPriceOracle(comptroller.oracle());
@@ -195,7 +181,6 @@ contract IBAgreementV2 is ReentrancyGuard {
         external
         nonReentrant
         onlyBorrower
-        marketAllowed(address(cy))
     {
         IERC20 underlying = IERC20(cy.underlying());
         underlying.safeTransferFrom(msg.sender, address(this), amount);
@@ -334,28 +319,6 @@ contract IBAgreementV2 is ReentrancyGuard {
         );
 
         priceFeed = IPriceFeed(_priceFeed);
-    }
-
-    /**
-     * @notice Set the allowed markets mapping
-     * @param markets The address of cyTokens
-     * @param states The states of allowance
-     */
-    function setAllowedMarkets(
-        address[] calldata markets,
-        bool[] calldata states
-    ) external onlyExecutor {
-        require(markets.length == states.length, "length mismatch");
-        for (uint256 i = 0; i < markets.length; i++) {
-            if (states[i]) {
-                require(
-                    comptroller.isMarketListed(markets[i]),
-                    "market not listed"
-                );
-            }
-            allowedMarkets[markets[i]] = states[i];
-            emit AllowedMarketsUpdated(markets[i], states[i]);
-        }
     }
 
     /* Internal functions */
