@@ -11,9 +11,9 @@ interface IConverter {
         external
         returns (uint256);
 
-    function getAmountOut(uint256 amountIn) external view returns (uint256);
+    function getAmountOut(uint256 amountIn) external returns (uint256);
 
-    function getAmountIn(uint256 amountOut) external view returns (uint256);
+    function getAmountIn(uint256 amountOut) external returns (uint256);
 
     function source() external view returns (address);
 
