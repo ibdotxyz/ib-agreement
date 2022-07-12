@@ -81,7 +81,7 @@ contract UniswapV2Converter is Ownable, IConverter {
             amountIn,
             amountOutMin,
             paths,
-            owner(),
+            ibAgreement,
             block.timestamp + 3600 // 1 hour
         );
         return amountsOut[paths.length - 1];
@@ -105,7 +105,7 @@ contract UniswapV2Converter is Ownable, IConverter {
             amountOut,
             amountInMax,
             paths,
-            owner(),
+            ibAgreement,
             block.timestamp + 3600 // 1 hour
         );
         return amountsIn[0];

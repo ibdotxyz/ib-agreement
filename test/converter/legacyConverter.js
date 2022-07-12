@@ -2,7 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { impersonateAccount } = require("./testUtil.js");
 
-describe("IBAgreement", () => {
+describe("Legacy Converter", () => {
   const toWei = ethers.utils.parseEther;
   const usdAddress = '0x0000000000000000000000000000000000000348';
   const creamAddress ='0x2ba592F78dB6436527729929AAf6c908497cB200';
@@ -22,14 +22,14 @@ describe("IBAgreement", () => {
   let cream, usdc;
   let creamWhale;
 
-  
+
   let converter;
-  
+
 
   beforeEach(async () => {
     accounts = await ethers.getSigners();
     // console.log(accounts)
-    executor = accounts[0];    
+    executor = accounts[0];
     executorAddress = await executor.getAddress();
     creamWhale = await impersonateAccount(creamWhaleAddress);
     const tokenFactory = await ethers.getContractFactory("MockToken");
@@ -37,7 +37,7 @@ describe("IBAgreement", () => {
 
     cream = tokenFactory.attach(creamAddress)
     usdc = tokenFactory.attach(usdcAddress);
-    
+
     converter = await converterFactory.deploy(routerAddress, wethAddress, creamAddress, usdcAddress);
 
   });
@@ -45,12 +45,12 @@ describe("IBAgreement", () => {
     let swapAmount = ethers.utils.parseEther('10')
     let whaleBalance =  await cream.balanceOf(creamWhaleAddress)
     let initialUSDCBalance = await usdc.balanceOf(creamWhaleAddress)
-    console.log(whaleBalance.toString(), swapAmount.toString())
+    // console.log(whaleBalance.toString(), swapAmount.toString())
     await cream.connect(creamWhale).transfer(converter.address, swapAmount);
     await converter.connect(creamWhale).convert(swapAmount);
     let postUSDCBalance = await usdc.balanceOf(creamWhaleAddress)
     expect(postUSDCBalance.gt(initialUSDCBalance)).to.be.true
   });
 
-  
+
 });

@@ -17,7 +17,8 @@ contract UniswapV3Converter is Ownable, IConverter {
     address private immutable _destination;
     address[] public paths;
     uint24[] public fees;
-    bytes public path;
+    bytes public pathForExactIn;
+    bytes public pathForExactOut;
     address public immutable ibAgreement;
 
     modifier onlyIBAgreement() {
@@ -42,9 +43,11 @@ contract UniswapV3Converter is Ownable, IConverter {
 
         // encode the path
         for (uint256 i = 0; i < _paths.length; i++) {
-            path = abi.encodePacked(path, _paths[i]);
+            pathForExactIn = abi.encodePacked(pathForExactIn, _paths[i]);
+            pathForExactOut = abi.encodePacked(_paths[i], pathForExactOut);
             if (i != _paths.length - 1) {
-                path = abi.encodePacked(path, _fees[i]);
+                pathForExactIn = abi.encodePacked(pathForExactIn, _fees[i]);
+                pathForExactOut = abi.encodePacked(_fees[i], pathForExactOut);
             }
         }
     }
@@ -66,7 +69,7 @@ contract UniswapV3Converter is Ownable, IConverter {
         override
         returns (uint256)
     {
-        return uniswapV3Quoter.quoteExactInput(path, amountIn);
+        return uniswapV3Quoter.quoteExactInput(pathForExactIn, amountIn);
     }
 
     function getAmountIn(uint256 amountOut)
@@ -74,7 +77,7 @@ contract UniswapV3Converter is Ownable, IConverter {
         override
         returns (uint256)
     {
-        return uniswapV3Quoter.quoteExactOutput(path, amountOut);
+        return uniswapV3Quoter.quoteExactOutput(pathForExactOut, amountOut);
     }
 
     function convertExactTokensForTokens(uint256 amountIn, uint256 amountOutMin)
@@ -93,8 +96,8 @@ contract UniswapV3Converter is Ownable, IConverter {
         );
         ISwapRouter.ExactInputParams memory params = ISwapRouter
             .ExactInputParams({
-                path: path,
-                recipient: owner(),
+                path: pathForExactIn,
+                recipient: ibAgreement,
                 deadline: block.timestamp + 3600, // 1 hour
                 amountIn: amountIn,
                 amountOutMinimum: amountOutMin
@@ -118,8 +121,8 @@ contract UniswapV3Converter is Ownable, IConverter {
         );
         ISwapRouter.ExactOutputParams memory params = ISwapRouter
             .ExactOutputParams({
-                path: path,
-                recipient: owner(),
+                path: pathForExactOut,
+                recipient: ibAgreement,
                 deadline: block.timestamp + 3600, // 1 hour
                 amountOut: amountOut,
                 amountInMaximum: amountInMax

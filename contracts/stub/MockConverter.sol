@@ -53,10 +53,10 @@ contract MockConverter is IConverter {
 
     function getAmountOut(uint256 amountIn)
         external
-        view
         override
         returns (uint256)
     {
+        _source = _source; // Shh
         // For simplicity, trade with fixed price.
         uint256 amountOut = (amountIn *
             _price *
@@ -67,10 +67,10 @@ contract MockConverter is IConverter {
 
     function getAmountIn(uint256 amountOut)
         external
-        view
         override
         returns (uint256)
     {
+        _source = _source; // Shh
         // For simplicity, trade with fixed price.
         uint256 amountIn = (amountOut * 10**MockToken(_source).decimals()) /
             10**MockToken(_destination).decimals() /

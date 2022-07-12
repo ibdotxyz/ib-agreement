@@ -211,20 +211,7 @@ contract IBAgreementV2 is ReentrancyGuard {
         uint256 collateralAmount,
         uint256 repayAmountMin
     ) external onlyExecutor {
-        IERC20 underlying = IERC20(market.underlying());
-        require(
-            this.debtUSD() > this.liquidationThreshold(),
-            "not liquidatable"
-        );
-        require(address(converters[market]) != address(0), "empty converter");
-        require(
-            converters[market].source() == address(collateral),
-            "mismatch source token"
-        );
-        require(
-            converters[market].destination() == address(underlying),
-            "mismatch destination token"
-        );
+        checkLiquidatable(market);
 
         // Approve and convert.
         IERC20(collateral).safeIncreaseAllowance(
@@ -249,25 +236,12 @@ contract IBAgreementV2 is ReentrancyGuard {
         external
         onlyExecutor
     {
-        IERC20 underlying = IERC20(market.underlying());
-        require(
-            this.debtUSD() > this.liquidationThreshold(),
-            "not liquidatable"
-        );
-        require(address(converters[market]) != address(0), "empty converter");
-        require(
-            converters[market].source() == address(collateral),
-            "mismatch source token"
-        );
-        require(
-            converters[market].destination() == address(underlying),
-            "mismatch destination token"
-        );
+        checkLiquidatable(market);
 
         // Get the current borrow balance including interests as amount out.
         uint256 borrowBalance = market.borrowBalanceCurrent(address(this));
         uint256 amountIn = converters[market].getAmountIn(borrowBalance);
-        require(amountIn < collateralAmountMax, "too much collateral needed");
+        require(amountIn <= collateralAmountMax, "too much collateral needed");
 
         // Approve and convert.
         IERC20(collateral).safeIncreaseAllowance(
@@ -300,8 +274,7 @@ contract IBAgreementV2 is ReentrancyGuard {
                 "mismatch source token"
             );
             require(
-                _converters[i].destination() ==
-                    address(IERC20(_markets[i].underlying())),
+                _converters[i].destination() == _markets[i].underlying(),
                 "mismatch destination token"
             );
             converters[_markets[i]] = IConverter(_converters[i]);
@@ -369,6 +342,27 @@ contract IBAgreementV2 is ReentrancyGuard {
         uint8 decimals = IERC20Metadata(address(collateral)).decimals();
         uint256 normalizedAmount = amount * 10**(18 - decimals);
         return (normalizedAmount * priceFeed.getPrice()) / 1e18;
+    }
+
+    /**
+     * @notice Check if the market is liquidatable
+     * @param market The market
+     */
+    function checkLiquidatable(ICToken market) internal view {
+        IERC20 underlying = IERC20(market.underlying());
+        require(
+            this.debtUSD() > this.liquidationThreshold(),
+            "not liquidatable"
+        );
+        require(address(converters[market]) != address(0), "empty converter");
+        require(
+            converters[market].source() == address(collateral),
+            "mismatch source token"
+        );
+        require(
+            converters[market].destination() == address(underlying),
+            "mismatch destination token"
+        );
     }
 
     /**
