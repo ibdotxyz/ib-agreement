@@ -12,7 +12,6 @@ describe("IBAgreement", () => {
   let executor, executorAddress;
   let borrower, borrowerAddress;
   let governor, governorAddress;
-  let user, userAddress;
 
   let ibAgreement;
   let underlying;
@@ -37,10 +36,8 @@ describe("IBAgreement", () => {
     borrowerAddress = await borrower.getAddress();
     governor = accounts[3];
     governorAddress = await governor.getAddress();
-    user = accounts[4];
-    userAddress = await user.getAddress();
 
-    const ibAgreementFactory = await ethers.getContractFactory("IBAgreementV2");
+    const ibAgreementFactory = await ethers.getContractFactory("IBAgreementV3");
     const tokenFactory = await ethers.getContractFactory("MockToken");
     const cyTokenFactory = await ethers.getContractFactory("MockCyToken");
     const priceOracleFactory = await ethers.getContractFactory("MockPriceOralce");

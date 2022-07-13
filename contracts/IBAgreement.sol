@@ -11,7 +11,7 @@ import "./interfaces/ICToken.sol";
 import "./interfaces/IPriceFeed.sol";
 import "./interfaces/IPriceOracle.sol";
 
-contract IBAgreementV2 is ReentrancyGuard {
+contract IBAgreementV3 is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     address public immutable executor;
