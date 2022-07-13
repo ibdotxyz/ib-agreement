@@ -17,7 +17,12 @@ contract MockComptroller is IComptroller {
         return _oracle;
     }
 
-    function getAssetsIn(address account) external view override returns (address[] memory) {
+    function getAssetsIn(address account)
+        external
+        view
+        override
+        returns (address[] memory)
+    {
         return _assets[account];
     }
 
@@ -25,7 +30,12 @@ contract MockComptroller is IComptroller {
         _assets[account].push(cTokenAddress);
     }
 
-    function isMarketListed(address cTokenAddress) external view override returns (bool) {
+    function isMarketListed(address cTokenAddress)
+        external
+        view
+        override
+        returns (bool)
+    {
         return _isListed[cTokenAddress];
     }
 

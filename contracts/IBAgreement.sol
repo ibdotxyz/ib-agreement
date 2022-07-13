@@ -22,7 +22,7 @@ contract IBAgreementV2 is ReentrancyGuard {
     uint256 public immutable collateralFactor;
     uint256 public immutable liquidationFactor;
     IPriceFeed public priceFeed;
-    mapping(address => bool) public allowedMarkets;
+    mapping(ICToken => IConverter) public converters;
 
     modifier onlyBorrower() {
         require(msg.sender == borrower, "caller is not the borrower");
@@ -38,13 +38,6 @@ contract IBAgreementV2 is ReentrancyGuard {
         require(msg.sender == governor, "caller is not the governor");
         _;
     }
-
-    modifier marketAllowed(address cy) {
-        require(allowedMarkets[cy], "market not allowed");
-        _;
-    }
-
-    event AllowedMarketsUpdated(address, bool);
 
     /**
      * @dev Sets the values for {executor}, {borrower}, {governor}, {comptroller}, {collateral}, {priceFeed}, {collateralFactor}, and {liquidationFactor}.
@@ -144,7 +137,11 @@ contract IBAgreementV2 is ReentrancyGuard {
      * @param cy The cyToken
      * @param amount The borrow amount
      */
-    function borrow(ICToken cy, uint256 amount) external nonReentrant onlyBorrower marketAllowed(address(cy)) {
+    function borrow(ICToken cy, uint256 amount)
+        external
+        nonReentrant
+        onlyBorrower
+    {
         borrowInternal(cy, amount);
     }
 
@@ -152,7 +149,7 @@ contract IBAgreementV2 is ReentrancyGuard {
      * @notice Borrow max from cyToken with current price
      * @param cy The cyToken
      */
-    function borrowMax(ICToken cy) external nonReentrant onlyBorrower marketAllowed(address(cy)) {
+    function borrowMax(ICToken cy) external nonReentrant onlyBorrower {
         (, , uint256 borrowBalance, ) = cy.getAccountSnapshot(address(this));
 
         IPriceOracle oracle = IPriceOracle(comptroller.oracle());
@@ -180,7 +177,11 @@ contract IBAgreementV2 is ReentrancyGuard {
      * @param cy The cyToken
      * @param amount The repay amount
      */
-    function repay(ICToken cy, uint256 amount) external nonReentrant onlyBorrower marketAllowed(address(cy)) {
+    function repay(ICToken cy, uint256 amount)
+        external
+        nonReentrant
+        onlyBorrower
+    {
         IERC20 underlying = IERC20(cy.underlying());
         underlying.safeTransferFrom(msg.sender, address(this), amount);
         repayInternal(cy, amount);
@@ -192,13 +193,92 @@ contract IBAgreementV2 is ReentrancyGuard {
      * @param amount The amount
      */
     function seize(IERC20 token, uint256 amount) external onlyExecutor {
-        if (address(token) == address(collateral)) {
-            require(
-                this.debtUSD() > this.liquidationThreshold(),
-                "not liquidatable"
-            );
-        }
+        require(
+            address(token) != address(collateral),
+            "seize collateral not allow"
+        );
         token.safeTransfer(executor, amount);
+    }
+
+    /**
+     * @notice Liquidate the collateral for a given market
+     * @param market The market
+     * @param collateralAmount The collateral amount for liquidation
+     * @param repayAmountMin The min repay amount after conversion
+     */
+    function liquidate(
+        ICToken market,
+        uint256 collateralAmount,
+        uint256 repayAmountMin
+    ) external onlyExecutor {
+        checkLiquidatable(market);
+
+        // Approve and convert.
+        IERC20(collateral).safeIncreaseAllowance(
+            address(converters[market]),
+            collateralAmount
+        );
+        uint256 amountOut = converters[market].convertExactTokensForTokens(
+            collateralAmount,
+            repayAmountMin
+        );
+
+        // Repay the debts.
+        repayInternal(market, amountOut);
+    }
+
+    /**
+     * @notice Fully liquidate a collateral for a given market
+     * @param market The market
+     * @param collateralAmountMax The max collateral amount for liquidation
+     */
+    function liquidateFull(ICToken market, uint256 collateralAmountMax)
+        external
+        onlyExecutor
+    {
+        checkLiquidatable(market);
+
+        // Get the current borrow balance including interests as amount out.
+        uint256 borrowBalance = market.borrowBalanceCurrent(address(this));
+        uint256 amountIn = converters[market].getAmountIn(borrowBalance);
+        require(amountIn <= collateralAmountMax, "too much collateral needed");
+
+        // Approve and convert.
+        IERC20(collateral).safeIncreaseAllowance(
+            address(converters[market]),
+            amountIn
+        );
+        converters[market].convertTokensForExactTokens(
+            borrowBalance,
+            collateralAmountMax
+        );
+
+        // Repay the debts.
+        repayInternal(market, borrowBalance);
+    }
+
+    /**
+     * @notice Set the converter for liquidation
+     * @param _markets The markets
+     * @param _converters The converters
+     */
+    function setConverter(
+        ICToken[] calldata _markets,
+        IConverter[] calldata _converters
+    ) external onlyExecutor {
+        require(_markets.length == _converters.length, "length mismatch");
+        for (uint256 i = 0; i < _markets.length; i++) {
+            require(address(_converters[i]) != address(0), "empty converter");
+            require(
+                _converters[i].source() == address(collateral),
+                "mismatch source token"
+            );
+            require(
+                _converters[i].destination() == _markets[i].underlying(),
+                "mismatch destination token"
+            );
+            converters[_markets[i]] = IConverter(_converters[i]);
+        }
     }
 
     /**
@@ -214,22 +294,6 @@ contract IBAgreementV2 is ReentrancyGuard {
         priceFeed = IPriceFeed(_priceFeed);
     }
 
-    /**
-     * @notice Set the allowed markets mapping
-     * @param markets The address of cyTokens
-     * @param states The states of allowance
-     */
-     function setAllowedMarkets(address[] calldata markets, bool[] calldata states) external onlyExecutor {
-         require(markets.length == states.length, "length mismatch");
-         for (uint256 i = 0; i < markets.length; i++) {
-            if (states[i]) {
-                require(comptroller.isMarketListed(markets[i]), "market not listed");
-            }
-            allowedMarkets[markets[i]] = states[i];
-            emit AllowedMarketsUpdated(markets[i], states[i]);
-         }
-     }
-
     /* Internal functions */
 
     /**
@@ -244,12 +308,16 @@ contract IBAgreementV2 is ReentrancyGuard {
         returns (uint256)
     {
         uint256 debt;
-        address[] memory borrowedAssets = comptroller.getAssetsIn(address(this));
+        address[] memory borrowedAssets = comptroller.getAssetsIn(
+            address(this)
+        );
         IPriceOracle oracle = IPriceOracle(comptroller.oracle());
         for (uint256 i = 0; i < borrowedAssets.length; i++) {
             ICToken cy = ICToken(borrowedAssets[i]);
             uint256 amount;
-            (, , uint256 borrowBalance, ) = cy.getAccountSnapshot(address(this));
+            (, , uint256 borrowBalance, ) = cy.getAccountSnapshot(
+                address(this)
+            );
             if (address(cy) == borrowCy) {
                 amount = borrowBalance + borrowAmount;
             } else {
@@ -277,13 +345,35 @@ contract IBAgreementV2 is ReentrancyGuard {
     }
 
     /**
+     * @notice Check if the market is liquidatable
+     * @param market The market
+     */
+    function checkLiquidatable(ICToken market) internal view {
+        IERC20 underlying = IERC20(market.underlying());
+        require(
+            this.debtUSD() > this.liquidationThreshold(),
+            "not liquidatable"
+        );
+        require(address(converters[market]) != address(0), "empty converter");
+        require(
+            converters[market].source() == address(collateral),
+            "mismatch source token"
+        );
+        require(
+            converters[market].destination() == address(underlying),
+            "mismatch destination token"
+        );
+    }
+
+    /**
      * @notice Borrow from cyToken
      * @param cy The cyToken
      * @param _amount The borrow amount
      */
     function borrowInternal(ICToken cy, uint256 _amount) internal {
         require(
-            getHypotheticalDebtValue(address(cy), _amount) <= this.collateralUSD(),
+            getHypotheticalDebtValue(address(cy), _amount) <=
+                this.collateralUSD(),
             "undercollateralized"
         );
         require(cy.borrow(_amount) == 0, "borrow failed");
