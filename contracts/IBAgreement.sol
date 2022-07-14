@@ -21,6 +21,7 @@ contract IBAgreementV3 is ReentrancyGuard {
     IERC20 public immutable collateral;
     uint256 public immutable collateralFactor;
     uint256 public immutable liquidationFactor;
+    uint256 public immutable closeFactor;
     IPriceFeed public priceFeed;
     mapping(ICToken => IConverter) public converters;
 
@@ -54,7 +55,8 @@ contract IBAgreementV3 is ReentrancyGuard {
         address _collateral,
         address _priceFeed,
         uint256 _collateralFactor,
-        uint256 _liquidationFactor
+        uint256 _liquidationFactor,
+        uint256 _closeFactor
     ) {
         executor = _executor;
         borrower = _borrower;
@@ -64,6 +66,7 @@ contract IBAgreementV3 is ReentrancyGuard {
         priceFeed = IPriceFeed(_priceFeed);
         collateralFactor = _collateralFactor;
         liquidationFactor = _liquidationFactor;
+        closeFactor = _closeFactor;
 
         require(_collateral == priceFeed.getToken(), "mismatch price feed");
         require(
@@ -74,6 +77,10 @@ contract IBAgreementV3 is ReentrancyGuard {
             _liquidationFactor >= _collateralFactor &&
                 _liquidationFactor <= 1e18,
             "invalid liquidation factor"
+        );
+        require(
+            _closeFactor > 0 && _closeFactor <= 1e18,
+            "invalid close factor"
         );
     }
 
@@ -188,6 +195,19 @@ contract IBAgreementV3 is ReentrancyGuard {
     }
 
     /**
+     * @notice Fully repay the debts
+     * @param cy The cyToken
+     */
+    function repayFull(ICToken cy) external nonReentrant onlyBorrower {
+        // Get the current borrow balance including interests.
+        uint256 borrowBalance = cy.borrowBalanceCurrent(address(this));
+
+        IERC20 underlying = IERC20(cy.underlying());
+        underlying.safeTransferFrom(msg.sender, address(this), borrowBalance);
+        repayInternal(cy, borrowBalance);
+    }
+
+    /**
      * @notice Seize the tokens
      * @param token The token
      * @param amount The amount
@@ -201,17 +221,23 @@ contract IBAgreementV3 is ReentrancyGuard {
     }
 
     /**
-     * @notice Liquidate the collateral for a given market
+     * @notice Liquidate with exact collateral amount for a given market
      * @param market The market
      * @param collateralAmount The collateral amount for liquidation
      * @param repayAmountMin The min repay amount after conversion
      */
-    function liquidate(
+    function liquidateWithExactCollateralAmount(
         ICToken market,
         uint256 collateralAmount,
         uint256 repayAmountMin
     ) external onlyExecutor {
         checkLiquidatable(market);
+
+        uint256 collateralBalance = collateral.balanceOf(address(this));
+        require(
+            collateralAmount <= (collateralBalance * closeFactor) / 1e18,
+            "liquidate too much"
+        );
 
         // Approve and convert.
         IERC20(collateral).safeIncreaseAllowance(
@@ -228,20 +254,26 @@ contract IBAgreementV3 is ReentrancyGuard {
     }
 
     /**
-     * @notice Fully liquidate a collateral for a given market
+     * @notice Liquidate for exact repay amount for a given market
      * @param market The market
+     * @param repayAmount The desired repay amount
      * @param collateralAmountMax The max collateral amount for liquidation
      */
-    function liquidateFull(ICToken market, uint256 collateralAmountMax)
-        external
-        onlyExecutor
-    {
+    function liquidateForExactRepayAmount(
+        ICToken market,
+        uint256 repayAmount,
+        uint256 collateralAmountMax
+    ) external onlyExecutor {
         checkLiquidatable(market);
 
-        // Get the current borrow balance including interests as amount out.
-        uint256 borrowBalance = market.borrowBalanceCurrent(address(this));
-        uint256 amountIn = converters[market].getAmountIn(borrowBalance);
+        uint256 amountIn = converters[market].getAmountIn(repayAmount);
         require(amountIn <= collateralAmountMax, "too much collateral needed");
+
+        uint256 collateralBalance = collateral.balanceOf(address(this));
+        require(
+            amountIn <= (collateralBalance * closeFactor) / 1e18,
+            "liquidate too much"
+        );
 
         // Approve and convert.
         IERC20(collateral).safeIncreaseAllowance(
@@ -249,12 +281,12 @@ contract IBAgreementV3 is ReentrancyGuard {
             amountIn
         );
         converters[market].convertTokensForExactTokens(
-            borrowBalance,
+            repayAmount,
             collateralAmountMax
         );
 
         // Repay the debts.
-        repayInternal(market, borrowBalance);
+        repayInternal(market, repayAmount);
     }
 
     /**
