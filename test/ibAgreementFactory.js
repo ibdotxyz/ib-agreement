@@ -7,6 +7,7 @@ describe("IBAgreementFactory", () => {
 
   const collateralFactor = toWei('0.5');
   const liquidationFactor = toWei('0.75');
+  const closeFactor = toWei('0.5');
 
   let accounts;
   let executor, executorAddress;
@@ -54,7 +55,7 @@ describe("IBAgreementFactory", () => {
   });
 
   it('creates ibAgreement', async () => {
-    await ibAgreementFactory.create(executorAddress, borrowerAddress, governorAddress, collateral.address, priceFeed.address, collateralFactor, liquidationFactor);
+    await ibAgreementFactory.create(executorAddress, borrowerAddress, governorAddress, collateral.address, priceFeed.address, collateralFactor, liquidationFactor, closeFactor);
 
     expect(await ibAgreementFactory.count()).to.eq(1);
   });
