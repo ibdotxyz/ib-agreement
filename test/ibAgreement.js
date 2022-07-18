@@ -8,6 +8,7 @@ describe("IBAgreement", () => {
   const collateralFactor = toWei('0.5');
   const liquidationFactor = toWei('0.75');
   const closeFactor = toWei('0.5');
+  const collateralCap = 1 * 1e8;
 
   let accounts;
   let executor, executorAddress;
@@ -56,7 +57,7 @@ describe("IBAgreement", () => {
     collateral = await tokenFactory.deploy("Wrapped BTC", "WBTC", 8);
     registry = await registryFactory.deploy();
     priceFeed = await priceFeedFactory.deploy(registry.address, collateral.address, collateral.address, usdAddress);
-    ibAgreement = await ibAgreementFactory.deploy(executorAddress, borrowerAddress, governorAddress, comptroller.address, collateral.address, priceFeed.address, collateralFactor, liquidationFactor, closeFactor);
+    ibAgreement = await ibAgreementFactory.deploy(executorAddress, borrowerAddress, governorAddress, comptroller.address, collateral.address, priceFeed.address, collateralFactor, liquidationFactor, closeFactor, collateralCap);
     await comptroller.setMarketListed(cyToken.address, true);
     await comptroller.pushAssetsIn(ibAgreement.address, cyToken.address);
 
@@ -103,13 +104,37 @@ describe("IBAgreement", () => {
       expect(await ibAgreement.collateralUSD()).to.eq(toWei('20000')); // CF: 50%
     });
 
+    it('shows the collateral in USD value with cap', async () => {
+      const cap = 0.5 * 1e8; // 0.5 wBTC
+      await ibAgreement.connect(governor).setCollateralCap(cap);
+      expect(await ibAgreement.collateralUSD()).to.eq(toWei('10000'));
+    });
+
     it('shows the hypothetical debt in USD value', async () => {
       const withdrawAmount = 0.5 * 1e8; // 0.5 wBTC
       expect(await ibAgreement.hypotheticalCollateralUSD(withdrawAmount)).to.eq(toWei('10000')); // CF: 50%
     });
 
+    it('shows the hypothetical debt in USD value with cap', async () => {
+      const cap = 0.5 * 1e8; // 0.5 wBTC
+      await ibAgreement.connect(governor).setCollateralCap(cap);
+
+      let withdrawAmount = 0.3 * 1e8; // 0.3 wBTC
+      expect(await ibAgreement.hypotheticalCollateralUSD(withdrawAmount)).to.eq(toWei('10000'));
+      withdrawAmount = 0.5 * 1e8; // 0.5 wBTC
+      expect(await ibAgreement.hypotheticalCollateralUSD(withdrawAmount)).to.eq(toWei('10000'));
+      withdrawAmount = 0.7 * 1e8; // 0.7 wBTC
+      expect(await ibAgreement.hypotheticalCollateralUSD(withdrawAmount)).to.eq(toWei('6000'));
+    });
+
     it('show the liquidation threshold', async () => {
       expect(await ibAgreement.liquidationThreshold()).to.eq(toWei('30000')); // LF: 75%
+    });
+
+    it('show the liquidation threshold with cap', async () => {
+      const cap = 0.5 * 1e8; // 0.5 wBTC
+      await ibAgreement.connect(governor).setCollateralCap(cap);
+      expect(await ibAgreement.liquidationThreshold()).to.eq(toWei('15000'));
     });
   });
 
@@ -140,7 +165,16 @@ describe("IBAgreement", () => {
     });
 
     it('failed to borrow for undercollateralized', async () => {
-      const amount = 20001 * 1e6; // collateral is 20000
+      const amount = 20001 * 1e6; // collateral is $20000
+      await expect(ibAgreement.connect(borrower).borrow(cyToken.address, amount)).to.be.revertedWith('undercollateralized');
+      expect(await ibAgreement.debtUSD()).to.eq(0);
+    });
+
+    it('failed to borrow for undercollateralized (collateral cap)', async () => {
+      const cap = 0.5 * 1e8; // 0.5 wBTC
+      await ibAgreement.connect(governor).setCollateralCap(cap);
+
+      const amount = 10001 * 1e6; // collateral is $10000
       await expect(ibAgreement.connect(borrower).borrow(cyToken.address, amount)).to.be.revertedWith('undercollateralized');
       expect(await ibAgreement.debtUSD()).to.eq(0);
     });
@@ -154,6 +188,14 @@ describe("IBAgreement", () => {
     it('borrows max successfully', async () => {
       await ibAgreement.connect(borrower).borrowMax(cyToken.address);
       expect(await ibAgreement.debtUSD()).to.eq(toWei('20000'));
+    });
+
+    it('borrows max successfully (collateral cap)', async () => {
+      const cap = 0.5 * 1e8; // 0.5 wBTC
+      await ibAgreement.connect(governor).setCollateralCap(cap);
+
+      await ibAgreement.connect(borrower).borrowMax(cyToken.address);
+      expect(await ibAgreement.debtUSD()).to.eq(toWei('10000'));
     });
 
     it('borrows max successfully (rounding test)', async () => {
@@ -222,21 +264,35 @@ describe("IBAgreement", () => {
       expect(await ibAgreement.collateralUSD()).to.eq(0);
     });
 
+    it('withdraws successfully (collateral cap)', async () => {
+      const cap = 0.5 * 1e8; // 0.5 wBTC
+      await ibAgreement.connect(governor).setCollateralCap(cap);
+
+      const withdrawAmount = 0.3 * 1e8; // 0.3 wBTC
+      await ibAgreement.connect(borrower).withdraw(withdrawAmount);
+      expect(await ibAgreement.collateralUSD()).to.eq(toWei('10000')); // 0.5 wBTC, CF: 50%
+      expect(await collateral.balanceOf(ibAgreement.address)).to.eq(0.7 * 1e8); // 0.7 wBTC remain, only 0.5 wBTC is collateral
+
+      await ibAgreement.connect(borrower).withdraw(withdrawAmount);
+      expect(await ibAgreement.collateralUSD()).to.eq(toWei('8000')); // 0.4 wBTC, CF: 50%
+      expect(await collateral.balanceOf(ibAgreement.address)).to.eq(0.4 * 1e8); // 0.4 wBTC remain, 0.4 wBTC is collateral
+    });
+
     it('failed to withdraw for non-borrower', async () => {
       await expect(ibAgreement.withdraw(collateralAmount)).to.be.revertedWith('caller is not the borrower');
       expect(await ibAgreement.collateralUSD()).to.eq(toWei('20000')); // CF: 50%
     });
 
     it('failed to withdraw for undercollateralized', async () => {
-      const amount = 2 * 1e8; // 2 wBTC
-      await expect(ibAgreement.withdraw(amount)).to.be.revertedWith('caller is not the borrower');
+      await ibAgreement.connect(borrower).borrow(cyToken.address, borrowAmount);
+      await expect(ibAgreement.connect(borrower).withdraw(collateralAmount)).to.be.revertedWith('undercollateralized');
       expect(await ibAgreement.collateralUSD()).to.eq(toWei('20000')); // CF: 50%
     });
   });
 
   describe('seize', async () => {
     const collateralAmount = 1 * 1e8; // 1 wBTC
-    const amount = toWei('1'); // 1 CREAM
+    const amount = toWei('1'); // 1 TOKEN
 
     beforeEach(async () => {
       await Promise.all([
@@ -297,6 +353,29 @@ describe("IBAgreement", () => {
       expect(await ibAgreement.debtUSD()).to.eq(toWei('6667')); // 0.5 wBTC liquidated, $13333, $20000 - $13333 = $6667 debt remain, $6667 < $9999.75, not liquidatable
     });
 
+    it('liquidates with exact collateral amount successfully (collateral cap)', async () => {
+      const cap = 0.8 * 1e8; // 0.8 wBTC
+      await ibAgreement.connect(governor).setCollateralCap(cap);
+
+      const newCollateralPrice = '3300000000000'; // 33000 * 1e8
+      const newNormalizedCollateralPrice = '33000'; // for converter
+      const collateralAmount = 0.4 * 1e8; // 0.4 wBTC
+      await registry.setPrice(collateral.address, usdAddress, newCollateralPrice);
+      await converter.setPrice(newNormalizedCollateralPrice);
+      await ibAgreement.connect(executor).setConverter([cyToken.address], [converter.address]);
+      expect(await collateral.balanceOf(ibAgreement.address)).to.eq(1 * 1e8); // 1 wBTC, only 0.8 wBTC is collateral
+      expect(await ibAgreement.collateralUSD()).to.eq(toWei('13200')); // 0.8 wBTC * $33000, $26400, CF: 50%, $13200
+      expect(await ibAgreement.liquidationThreshold()).to.eq(toWei('19800')); // 0.8 wBTC * $33000, $26400, LF: 75%, $19800
+      expect(await ibAgreement.debtUSD()).to.eq(toWei('20000')); // $20000 > $19800, liquidatable
+
+      await ibAgreement.connect(executor).liquidateWithExactCollateralAmount(cyToken.address, collateralAmount, 0);
+
+      expect(await collateral.balanceOf(ibAgreement.address)).to.eq(0.6 * 1e8); // 0.6 wBTC remain, 0.6 wBTC is collateral
+      expect(await ibAgreement.collateralUSD()).to.eq(toWei('9900')); // 0.6 wBTC remain, $19800, CF: 50%, $9900
+      expect(await ibAgreement.liquidationThreshold()).to.eq(toWei('14850')); // 0.6 wBTC remain, $19800, LF: 75%, $14850
+      expect(await ibAgreement.debtUSD()).to.eq(toWei('6800')); // 0.4 wBTC liquidated, $13200, $20000 - $13200 = $6800 debt remain, $6800 < $14850, not liquidatable
+    });
+
     it('liquidates for exact repay amount successfully', async () => {
       const newCollateralPrice = '2666600000000'; // 26666 * 1e8
       const newNormalizedCollateralPrice = '26666'; // for converter
@@ -313,6 +392,29 @@ describe("IBAgreement", () => {
       expect(await ibAgreement.collateralUSD()).to.eq(toWei('10833.00010156')); // $5000 ~= 0.1875 * $26666, ~0.8125 wBTC remain, ~$21666, CF: 50%, ~$10833
       expect(await ibAgreement.liquidationThreshold()).to.eq(toWei('16249.50015234')); // $5000 ~= 0.1875 * $26666, ~0.8125 wBTC remain, ~$21666, LF: 75%, ~$16249
       expect(await ibAgreement.debtUSD()).to.eq(toWei('15000')); // ~0.1875 wBTC liquidated, $5000, $20000 - $5000 = $15000 debt remain, $15000 < $16249, not liquidatable
+    });
+
+    it('liquidates for exact repay amount successfully (collateral cap)', async () => {
+      const cap = 0.8 * 1e8; // 0.8 wBTC
+      await ibAgreement.connect(governor).setCollateralCap(cap);
+
+      const newCollateralPrice = '3300000000000'; // 33000 * 1e8
+      const newNormalizedCollateralPrice = '33000'; // for converter
+      const repayAmount = 5000 * 1e6; // 5000 USDT
+      await registry.setPrice(collateral.address, usdAddress, newCollateralPrice);
+      await converter.setPrice(newNormalizedCollateralPrice);
+      await ibAgreement.connect(executor).setConverter([cyToken.address], [converter.address]);
+      expect(await collateral.balanceOf(ibAgreement.address)).to.eq(1 * 1e8); // 1 wBTC, only 0.8 wBTC is collateral
+      expect(await ibAgreement.collateralUSD()).to.eq(toWei('13200')); // 0.8 wBTC * $33000, $26400, CF: 50%, $13200
+      expect(await ibAgreement.liquidationThreshold()).to.eq(toWei('19800')); // 0.8 wBTC * $33000, $26400, LF: 75%, $19800
+      expect(await ibAgreement.debtUSD()).to.eq(toWei('20000')); // $20000 > $19800, liquidatable
+
+      await ibAgreement.connect(executor).liquidateForExactRepayAmount(cyToken.address, repayAmount, collateralAmount);
+
+      expect(await collateral.balanceOf(ibAgreement.address)).to.eq(0.84848485 * 1e8); // ~0.8484 wBTC remain, only 0.8 wBTC is collateral
+      expect(await ibAgreement.collateralUSD()).to.eq(toWei('13200')); // $5000 ~= 0.1516 * $33000, ~0.8484 wBTC remain, only 0.8 wBTC is collateral, ~$26400, CF: 50%, ~$13200
+      expect(await ibAgreement.liquidationThreshold()).to.eq(toWei('19800')); // $5000 ~= 0.1516 * $33000, ~0.8484 wBTC remain, only 0.8 wBTC is collateral, ~$26400, LF: 75%, ~$19800
+      expect(await ibAgreement.debtUSD()).to.eq(toWei('15000')); // ~0.1516 wBTC liquidated, $5000, $20000 - $5000 = $15000 debt remain, $15000 < $19800, not liquidatable
     });
 
     it('failed to liquidate for non-executor', async () => {
@@ -354,7 +456,6 @@ describe("IBAgreement", () => {
     it('failed to liquidate with exact collateral amount for liquidate too much', async () => {
       const newCollateralPrice = '2666600000000'; // 26666 * 1e8
       const newNormalizedCollateralPrice = '26666'; // for converter
-      const amount = 0.51 * 1e8; // 0.51 wBTC
       await registry.setPrice(collateral.address, usdAddress, newCollateralPrice);
       await converter.setPrice(newNormalizedCollateralPrice);
       await ibAgreement.connect(executor).setConverter([cyToken.address], [converter.address]);
@@ -362,7 +463,39 @@ describe("IBAgreement", () => {
       expect(await ibAgreement.liquidationThreshold()).to.eq(toWei('19999.5')); // $26666, LF: 75%, $19999.5
       expect(await ibAgreement.debtUSD()).to.eq(toWei('20000')); // $20000 > $19999.5, liquidatable
 
+      let amount = 0.51 * 1e8; // 0.51 wBTC
       await expect(ibAgreement.connect(executor).liquidateWithExactCollateralAmount(cyToken.address, amount, 0)).to.be.revertedWith('liquidate too much');
+
+      amount = 0.5 * 1e8; // 0.5 wBTC
+      await ibAgreement.connect(executor).liquidateWithExactCollateralAmount(cyToken.address, amount, 0);
+      expect(await ibAgreement.collateralUSD()).to.eq(toWei('6666.5')); // 0.5 wBTC remain, $13333, CF: 50%, $6666.5
+      expect(await ibAgreement.liquidationThreshold()).to.eq(toWei('9999.75')); // 0.5 wBTC remain, $13333, LF: 75%, $9999.75
+      expect(await ibAgreement.debtUSD()).to.eq(toWei('6667')); // 0.5 wBTC liquidated, $13333, $20000 - $13333 = $6667 debt remain, $6667 < $9999.75, not liquidatable
+    });
+
+    it('failed to liquidate with exact collateral amount for liquidate too much (collateral cap)', async () => {
+      const cap = 0.8 * 1e8; // 0.8 wBTC
+      await ibAgreement.connect(governor).setCollateralCap(cap);
+
+      const newCollateralPrice = '3300000000000'; // 33000 * 1e8
+      const newNormalizedCollateralPrice = '33000'; // for converter
+      await registry.setPrice(collateral.address, usdAddress, newCollateralPrice);
+      await converter.setPrice(newNormalizedCollateralPrice);
+      await ibAgreement.connect(executor).setConverter([cyToken.address], [converter.address]);
+      expect(await collateral.balanceOf(ibAgreement.address)).to.eq(1 * 1e8); // 1 wBTC, only 0.8 wBTC is collateral
+      expect(await ibAgreement.collateralUSD()).to.eq(toWei('13200')); // 0.8 wBTC * $33000, $26400, CF: 50%, $13200
+      expect(await ibAgreement.liquidationThreshold()).to.eq(toWei('19800')); // 0.8 wBTC * $33000, $26400, LF: 75%, $19800
+      expect(await ibAgreement.debtUSD()).to.eq(toWei('20000')); // $20000 > $19800, liquidatable
+
+      let amount = 0.41 * 1e8; // 0.41 wBTC
+      await expect(ibAgreement.connect(executor).liquidateWithExactCollateralAmount(cyToken.address, amount, 0)).to.be.revertedWith('liquidate too much');
+
+      amount = 0.4 * 1e8; // 0.4 wBTC
+      await ibAgreement.connect(executor).liquidateWithExactCollateralAmount(cyToken.address, amount, 0);
+      expect(await collateral.balanceOf(ibAgreement.address)).to.eq(0.6 * 1e8); // 0.6 wBTC remain, 0.6 wBTC is collateral
+      expect(await ibAgreement.collateralUSD()).to.eq(toWei('9900')); // 0.6 wBTC remain, $19800, CF: 50%, $9900
+      expect(await ibAgreement.liquidationThreshold()).to.eq(toWei('14850')); // 0.6 wBTC remain, $19800, LF: 75%, $14850
+      expect(await ibAgreement.debtUSD()).to.eq(toWei('6800')); // 0.4 wBTC liquidated, $13200, $20000 - $13200 = $6800 debt remain, $6800 < $14850, not liquidatable
     });
 
     it('failed to liquidate for exact repay amount for liquidate too much', async () => {
@@ -375,7 +508,39 @@ describe("IBAgreement", () => {
       expect(await ibAgreement.liquidationThreshold()).to.eq(toWei('19999.5')); // $26666, LF: 75%, $19999.5
       expect(await ibAgreement.debtUSD()).to.eq(toWei('20000')); // $20000 > $19999.5, liquidatable
 
-      await expect(ibAgreement.connect(executor).liquidateForExactRepayAmount(cyToken.address, borrowAmount, collateralAmount)).to.be.revertedWith('liquidate too much');
+      let repayAmount = 13334 * 1e6; // 13334 USDT
+      await expect(ibAgreement.connect(executor).liquidateForExactRepayAmount(cyToken.address, repayAmount, collateralAmount)).to.be.revertedWith('liquidate too much');
+
+      repayAmount = 13333 * 1e6; // 13333 USDT
+      await ibAgreement.connect(executor).liquidateForExactRepayAmount(cyToken.address, repayAmount, collateralAmount);
+      expect(await ibAgreement.collateralUSD()).to.eq(toWei('6666.5')); // 0.5 wBTC remain, $13333, CF: 50%, $6666.5
+      expect(await ibAgreement.liquidationThreshold()).to.eq(toWei('9999.75')); // 0.5 wBTC remain, $13333, LF: 75%, $9999.75
+      expect(await ibAgreement.debtUSD()).to.eq(toWei('6667')); // 0.5 wBTC liquidated, $13333, $20000 - $13333 = $6667 debt remain, $6667 < $9999.75, not liquidatable
+    });
+
+    it('failed to liquidate for exact repay amount for liquidate too much (collateral cap)', async () => {
+      const cap = 0.8 * 1e8; // 0.8 wBTC
+      await ibAgreement.connect(governor).setCollateralCap(cap);
+
+      const newCollateralPrice = '3300000000000'; // 33000 * 1e8
+      const newNormalizedCollateralPrice = '33000'; // for converter
+      await registry.setPrice(collateral.address, usdAddress, newCollateralPrice);
+      await converter.setPrice(newNormalizedCollateralPrice);
+      await ibAgreement.connect(executor).setConverter([cyToken.address], [converter.address]);
+      expect(await collateral.balanceOf(ibAgreement.address)).to.eq(1 * 1e8); // 1 wBTC, only 0.8 wBTC is collateral
+      expect(await ibAgreement.collateralUSD()).to.eq(toWei('13200')); // 0.8 wBTC * $33000, $26400, CF: 50%, $13200
+      expect(await ibAgreement.liquidationThreshold()).to.eq(toWei('19800')); // 0.8 wBTC * $33000, $26400, LF: 75%, $19800
+      expect(await ibAgreement.debtUSD()).to.eq(toWei('20000')); // $20000 > $19800, liquidatable
+
+      let repayAmount = 13201 * 1e6; // 13201 USDT
+      await expect(ibAgreement.connect(executor).liquidateForExactRepayAmount(cyToken.address, repayAmount, collateralAmount)).to.be.revertedWith('liquidate too much');
+
+      repayAmount = 13200 * 1e6; // 13200 USDT
+      await ibAgreement.connect(executor).liquidateForExactRepayAmount(cyToken.address, repayAmount, collateralAmount);
+      expect(await collateral.balanceOf(ibAgreement.address)).to.eq(0.6 * 1e8); // 0.6 wBTC remain, 0.6 wBTC is collateral
+      expect(await ibAgreement.collateralUSD()).to.eq(toWei('9900')); // 0.6 wBTC remain, $19800, CF: 50%, $9900
+      expect(await ibAgreement.liquidationThreshold()).to.eq(toWei('14850')); // 0.6 wBTC remain, $19800, LF: 75%, $14850
+      expect(await ibAgreement.debtUSD()).to.eq(toWei('6800')); // 0.4 wBTC liquidated, $13200, $20000 - $13200 = $6800 debt remain, $6800 < $14850, not liquidatable
     });
   });
 
@@ -415,6 +580,19 @@ describe("IBAgreement", () => {
 
     it('failed to set price feed for non-governor', async () => {
       await expect(ibAgreement.setPriceFeed(priceFeed.address)).to.be.revertedWith('caller is not the governor');
+    });
+  });
+
+  describe('setCollateralCap', async () => {
+    const newCap = 2 * 1e8;
+
+    it('sets collateral cap successfully', async () => {
+      await ibAgreement.connect(governor).setCollateralCap(newCap);
+      expect(await ibAgreement.collateralCap()).to.eq(newCap);
+    });
+
+    it('failed to set collateral cap for non-governor', async () => {
+      await expect(ibAgreement.setCollateralCap(newCap)).to.be.revertedWith('caller is not the governor');
     });
   });
 });

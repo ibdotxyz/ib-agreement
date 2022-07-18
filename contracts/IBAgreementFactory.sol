@@ -23,7 +23,8 @@ contract IBAgreementFactory is Ownable {
         address _priceFeed,
         uint256 _collateralFactor,
         uint256 _liquidationFactor,
-        uint256 _closeFactor
+        uint256 _closeFactor,
+        uint256 _collateralCap
     ) external onlyOwner returns (address) {
         IBAgreementV3 ibAgreement = new IBAgreementV3(
             _executor,
@@ -34,7 +35,8 @@ contract IBAgreementFactory is Ownable {
             _priceFeed,
             _collateralFactor,
             _liquidationFactor,
-            _closeFactor
+            _closeFactor,
+            _collateralCap
         );
         ibAgreements.push(address(ibAgreement));
         emit IBAgreementCreated(address(ibAgreement));
