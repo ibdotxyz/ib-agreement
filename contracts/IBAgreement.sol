@@ -22,6 +22,7 @@ contract IBAgreementV3 is ReentrancyGuard {
     uint256 public immutable collateralFactor;
     uint256 public immutable liquidationFactor;
     uint256 public immutable closeFactor;
+    uint256 public collateralCap;
     IPriceFeed public priceFeed;
     mapping(ICToken => IConverter) public converters;
 
@@ -56,7 +57,8 @@ contract IBAgreementV3 is ReentrancyGuard {
         address _priceFeed,
         uint256 _collateralFactor,
         uint256 _liquidationFactor,
-        uint256 _closeFactor
+        uint256 _closeFactor,
+        uint256 _collateralCap
     ) {
         executor = _executor;
         borrower = _borrower;
@@ -67,6 +69,7 @@ contract IBAgreementV3 is ReentrancyGuard {
         collateralFactor = _collateralFactor;
         liquidationFactor = _liquidationFactor;
         closeFactor = _closeFactor;
+        collateralCap = _collateralCap;
 
         require(_collateral == priceFeed.getToken(), "mismatch price feed");
         require(
@@ -233,9 +236,9 @@ contract IBAgreementV3 is ReentrancyGuard {
     ) external onlyExecutor {
         checkLiquidatable(market);
 
-        uint256 collateralBalance = collateral.balanceOf(address(this));
         require(
-            collateralAmount <= (collateralBalance * closeFactor) / 1e18,
+            collateralAmount <=
+                (getHypotheticalCollateralBalance(0) * closeFactor) / 1e18,
             "liquidate too much"
         );
 
@@ -269,9 +272,9 @@ contract IBAgreementV3 is ReentrancyGuard {
         uint256 amountIn = converters[market].getAmountIn(repayAmount);
         require(amountIn <= collateralAmountMax, "too much collateral needed");
 
-        uint256 collateralBalance = collateral.balanceOf(address(this));
         require(
-            amountIn <= (collateralBalance * closeFactor) / 1e18,
+            amountIn <=
+                (getHypotheticalCollateralBalance(0) * closeFactor) / 1e18,
             "liquidate too much"
         );
 
@@ -314,6 +317,14 @@ contract IBAgreementV3 is ReentrancyGuard {
     }
 
     /**
+     * @notice Set the collateral cap
+     * @param _collateralCap The new cap
+     */
+    function setCollateralCap(uint256 _collateralCap) external onlyGovernor {
+        collateralCap = _collateralCap;
+    }
+
+    /**
      * @notice Set the price feed of the collateral
      * @param _priceFeed The new price feed
      */
@@ -327,6 +338,23 @@ contract IBAgreementV3 is ReentrancyGuard {
     }
 
     /* Internal functions */
+
+    /**
+     * @notice Get the current collateral balance, min(balance, cap)
+     * @param withdrawAmount The hypothetical withdraw amount
+     * @return The collateral balance
+     */
+    function getHypotheticalCollateralBalance(uint256 withdrawAmount)
+        internal
+        view
+        returns (uint256)
+    {
+        uint256 balance = collateral.balanceOf(address(this)) - withdrawAmount;
+        if (collateralCap != 0 && collateralCap <= balance) {
+            balance = collateralCap;
+        }
+        return balance;
+    }
 
     /**
      * @notice Get the current debt of this contract
@@ -370,10 +398,10 @@ contract IBAgreementV3 is ReentrancyGuard {
         view
         returns (uint256)
     {
-        uint256 amount = collateral.balanceOf(address(this)) - withdrawAmount;
+        uint256 balance = getHypotheticalCollateralBalance(withdrawAmount);
         uint8 decimals = IERC20Metadata(address(collateral)).decimals();
-        uint256 normalizedAmount = amount * 10**(18 - decimals);
-        return (normalizedAmount * priceFeed.getPrice()) / 1e18;
+        uint256 normalizedBalance = balance * 10**(18 - decimals);
+        return (normalizedBalance * priceFeed.getPrice()) / 1e18;
     }
 
     /**
