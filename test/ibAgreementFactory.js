@@ -18,8 +18,8 @@ describe("IBAgreementFactory", () => {
   let ibAgreementFactory;
   let underlying;
   let underlying2;
-  let cyToken;
-  let cyToken2;
+  let iToken;
+  let iToken2;
   let priceOracle;
   let comptroller;
   let collateral;
@@ -37,7 +37,7 @@ describe("IBAgreementFactory", () => {
 
     const ibAgreementFactoryFactory = await ethers.getContractFactory("IBAgreementFactory");
     const tokenFactory = await ethers.getContractFactory("MockToken");
-    const cyTokenFactory = await ethers.getContractFactory("MockCyToken");
+    const iTokenFactory = await ethers.getContractFactory("MockIToken");
     const priceOracleFactory = await ethers.getContractFactory("MockPriceOralce");
     const comptrollerFactory = await ethers.getContractFactory("MockComptroller");
     const registryFactory = await ethers.getContractFactory("MockRegistry");
@@ -47,8 +47,8 @@ describe("IBAgreementFactory", () => {
     comptroller = await comptrollerFactory.deploy(priceOracle.address);
     underlying = await tokenFactory.deploy("USD Tether", "USDT", 6);
     underlying2 = await tokenFactory.deploy("Wrapped Ether", "WETH", 18);
-    cyToken = await cyTokenFactory.deploy(comptroller.address, underlying.address);
-    cyToken2 = await cyTokenFactory.deploy(comptroller.address, underlying2.address);
+    iToken = await iTokenFactory.deploy(comptroller.address, underlying.address);
+    iToken2 = await iTokenFactory.deploy(comptroller.address, underlying2.address);
     collateral = await tokenFactory.deploy("Wrapped BTC", "WBTC", 8);
     registry = await registryFactory.deploy();
     priceFeed = await priceFeedFactory.deploy(registry.address, collateral.address, collateral.address, usdAddress);
