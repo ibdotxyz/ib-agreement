@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./interfaces/IComptroller.sol";
 import "./interfaces/IConverter.sol";
-import "./interfaces/ICToken.sol";
+import "./interfaces/IIToken.sol";
 import "./interfaces/IPriceFeed.sol";
 import "./interfaces/IPriceOracle.sol";
 
@@ -24,7 +24,7 @@ contract IBAgreementV3 is ReentrancyGuard {
     uint256 public immutable closeFactor;
     uint256 public collateralCap;
     IPriceFeed public priceFeed;
-    mapping(ICToken => IConverter) public converters;
+    mapping(IIToken => IConverter) public converters;
 
     modifier onlyBorrower() {
         require(msg.sender == borrower, "caller is not the borrower");
@@ -42,11 +42,11 @@ contract IBAgreementV3 is ReentrancyGuard {
     }
 
     /**
-     * @dev Sets the values for {executor}, {borrower}, {governor}, {comptroller}, {collateral}, {priceFeed}, {collateralFactor}, and {liquidationFactor}.
+     * @dev Sets the values for {executor}, {borrower}, {governor}, {comptroller}, {collateral}, {priceFeed}, {collateralFactor}, {liquidationFactor}, {closeFactor}, and {collateralCap}.
      *
      * {collateral} must be a vanilla ERC20 token.
      *
-     * All of these values are immutable: they can only be set once during construction.
+     * All of these values except {priceFeed} and {collateralCap} are immutable: they can only be set once during construction.
      */
     constructor(
         address _executor,
@@ -97,16 +97,16 @@ contract IBAgreementV3 is ReentrancyGuard {
 
     /**
      * @notice Get the hypothetical debt in USD value of this contract after borrow
-     * @param cy The cyToken
+     * @param market The market
      * @param borrowAmount The hypothetical borrow amount
      * @return The hypothetical debt in USD value
      */
-    function hypotheticalDebtUSD(ICToken cy, uint256 borrowAmount)
+    function hypotheticalDebtUSD(IIToken market, uint256 borrowAmount)
         external
         view
         returns (uint256)
     {
-        return getHypotheticalDebtValue(address(cy), borrowAmount);
+        return getHypotheticalDebtValue(address(market), borrowAmount);
     }
 
     /**
@@ -143,31 +143,33 @@ contract IBAgreementV3 is ReentrancyGuard {
     }
 
     /**
-     * @notice Borrow from cyToken if the collateral is sufficient
-     * @param cy The cyToken
+     * @notice Borrow from market if the collateral is sufficient
+     * @param market The market
      * @param amount The borrow amount
      */
-    function borrow(ICToken cy, uint256 amount)
+    function borrow(IIToken market, uint256 amount)
         external
         nonReentrant
         onlyBorrower
     {
-        borrowInternal(cy, amount);
+        borrowInternal(market, amount);
     }
 
     /**
-     * @notice Borrow max from cyToken with current price
-     * @param cy The cyToken
+     * @notice Borrow max from market with current price
+     * @param market The market
      */
-    function borrowMax(ICToken cy) external nonReentrant onlyBorrower {
-        (, , uint256 borrowBalance, ) = cy.getAccountSnapshot(address(this));
+    function borrowMax(IIToken market) external nonReentrant onlyBorrower {
+        (, , uint256 borrowBalance, ) = market.getAccountSnapshot(
+            address(this)
+        );
 
         IPriceOracle oracle = IPriceOracle(comptroller.oracle());
 
         uint256 maxBorrowAmount = (this.collateralUSD() * 1e18) /
-            oracle.getUnderlyingPrice(address(cy));
+            oracle.getUnderlyingPrice(address(market));
         require(maxBorrowAmount > borrowBalance, "undercollateralized");
-        borrowInternal(cy, maxBorrowAmount - borrowBalance);
+        borrowInternal(market, maxBorrowAmount - borrowBalance);
     }
 
     /**
@@ -184,30 +186,30 @@ contract IBAgreementV3 is ReentrancyGuard {
 
     /**
      * @notice Repay the debts
-     * @param cy The cyToken
+     * @param market The market
      * @param amount The repay amount
      */
-    function repay(ICToken cy, uint256 amount)
+    function repay(IIToken market, uint256 amount)
         external
         nonReentrant
         onlyBorrower
     {
-        IERC20 underlying = IERC20(cy.underlying());
+        IERC20 underlying = IERC20(market.underlying());
         underlying.safeTransferFrom(msg.sender, address(this), amount);
-        repayInternal(cy, amount);
+        repayInternal(market, amount);
     }
 
     /**
      * @notice Fully repay the debts
-     * @param cy The cyToken
+     * @param market The market
      */
-    function repayFull(ICToken cy) external nonReentrant onlyBorrower {
+    function repayFull(IIToken market) external nonReentrant onlyBorrower {
         // Get the current borrow balance including interests.
-        uint256 borrowBalance = cy.borrowBalanceCurrent(address(this));
+        uint256 borrowBalance = market.borrowBalanceCurrent(address(this));
 
-        IERC20 underlying = IERC20(cy.underlying());
+        IERC20 underlying = IERC20(market.underlying());
         underlying.safeTransferFrom(msg.sender, address(this), borrowBalance);
-        repayInternal(cy, borrowBalance);
+        repayInternal(market, borrowBalance);
     }
 
     /**
@@ -230,7 +232,7 @@ contract IBAgreementV3 is ReentrancyGuard {
      * @param repayAmountMin The min repay amount after conversion
      */
     function liquidateWithExactCollateralAmount(
-        ICToken market,
+        IIToken market,
         uint256 collateralAmount,
         uint256 repayAmountMin
     ) external onlyExecutor {
@@ -263,7 +265,7 @@ contract IBAgreementV3 is ReentrancyGuard {
      * @param collateralAmountMax The max collateral amount for liquidation
      */
     function liquidateForExactRepayAmount(
-        ICToken market,
+        IIToken market,
         uint256 repayAmount,
         uint256 collateralAmountMax
     ) external onlyExecutor {
@@ -298,7 +300,7 @@ contract IBAgreementV3 is ReentrancyGuard {
      * @param _converters The converters
      */
     function setConverter(
-        ICToken[] calldata _markets,
+        IIToken[] calldata _markets,
         IConverter[] calldata _converters
     ) external onlyExecutor {
         require(_markets.length == _converters.length, "length mismatch");
@@ -358,32 +360,33 @@ contract IBAgreementV3 is ReentrancyGuard {
 
     /**
      * @notice Get the current debt of this contract
-     * @param borrowCy The hypothetical borrow cyToken
+     * @param borrowMarket The hypothetical borrow market
      * @param borrowAmount The hypothetical borrow amount
      * @return The borrow balance
      */
-    function getHypotheticalDebtValue(address borrowCy, uint256 borrowAmount)
-        internal
-        view
-        returns (uint256)
-    {
+    function getHypotheticalDebtValue(
+        address borrowMarket,
+        uint256 borrowAmount
+    ) internal view returns (uint256) {
         uint256 debt;
         address[] memory borrowedAssets = comptroller.getAssetsIn(
             address(this)
         );
         IPriceOracle oracle = IPriceOracle(comptroller.oracle());
         for (uint256 i = 0; i < borrowedAssets.length; i++) {
-            ICToken cy = ICToken(borrowedAssets[i]);
+            IIToken market = IIToken(borrowedAssets[i]);
             uint256 amount;
-            (, , uint256 borrowBalance, ) = cy.getAccountSnapshot(
+            (, , uint256 borrowBalance, ) = market.getAccountSnapshot(
                 address(this)
             );
-            if (address(cy) == borrowCy) {
+            if (address(market) == borrowMarket) {
                 amount = borrowBalance + borrowAmount;
             } else {
                 amount = borrowBalance;
             }
-            debt += (amount * oracle.getUnderlyingPrice(address(cy))) / 1e18;
+            debt +=
+                (amount * oracle.getUnderlyingPrice(address(market))) /
+                1e18;
         }
         return debt;
     }
@@ -408,7 +411,7 @@ contract IBAgreementV3 is ReentrancyGuard {
      * @notice Check if the market is liquidatable
      * @param market The market
      */
-    function checkLiquidatable(ICToken market) internal view {
+    function checkLiquidatable(IIToken market) internal view {
         IERC20 underlying = IERC20(market.underlying());
         require(
             this.debtUSD() > this.liquidationThreshold(),
@@ -426,26 +429,29 @@ contract IBAgreementV3 is ReentrancyGuard {
     }
 
     /**
-     * @notice Borrow from cyToken
-     * @param cy The cyToken
+     * @notice Borrow from market
+     * @param market The market
      * @param _amount The borrow amount
      */
-    function borrowInternal(ICToken cy, uint256 _amount) internal {
+    function borrowInternal(IIToken market, uint256 _amount) internal {
         require(
-            getHypotheticalDebtValue(address(cy), _amount) <=
+            getHypotheticalDebtValue(address(market), _amount) <=
                 this.collateralUSD(),
             "undercollateralized"
         );
-        require(cy.borrow(_amount) == 0, "borrow failed");
-        IERC20(cy.underlying()).safeTransfer(borrower, _amount);
+        require(market.borrow(_amount) == 0, "borrow failed");
+        IERC20(market.underlying()).safeTransfer(borrower, _amount);
     }
 
     /**
      * @notice Repay the debts
      * @param _amount The repay amount
      */
-    function repayInternal(ICToken cy, uint256 _amount) internal {
-        IERC20(cy.underlying()).safeIncreaseAllowance(address(cy), _amount);
-        require(cy.repayBorrow(_amount) == 0, "repay failed");
+    function repayInternal(IIToken market, uint256 _amount) internal {
+        IERC20(market.underlying()).safeIncreaseAllowance(
+            address(market),
+            _amount
+        );
+        require(market.repayBorrow(_amount) == 0, "repay failed");
     }
 }

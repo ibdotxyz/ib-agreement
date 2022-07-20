@@ -2,10 +2,10 @@
 
 pragma solidity ^0.8.0;
 
-import "../interfaces/ICToken.sol";
+import "../interfaces/IIToken.sol";
 import "./MockToken.sol";
 
-contract MockCyToken is ICToken {
+contract MockIToken is IIToken {
     mapping(address => uint256) private _balances;
     mapping(address => uint256) private _borrowBalances;
     MockToken private _underlying;
