@@ -99,6 +99,14 @@ Liquidate the borrower for exact repayment amount.
 
 Set converters for the borrow markets.
 
+#### pause
+
+Pause the IBAgreement. If the IBAgreement is paused, borrowers can't borrow and withdraw collateral if there is stil debt.
+
+#### unpause
+
+Unpause the IBAgreement.
+
 ### Governor Functions
 
 #### setCollateralCap

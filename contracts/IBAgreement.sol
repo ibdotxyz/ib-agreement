@@ -2,6 +2,7 @@
 
 pragma solidity ^0.8.0;
 
+import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -11,7 +12,7 @@ import "./interfaces/IIToken.sol";
 import "./interfaces/IPriceFeed.sol";
 import "./interfaces/IPriceOracle.sol";
 
-contract IBAgreementV3 is ReentrancyGuard {
+contract IBAgreementV3 is ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
     address public immutable executor;
@@ -150,6 +151,7 @@ contract IBAgreementV3 is ReentrancyGuard {
     function borrow(IIToken market, uint256 amount)
         external
         nonReentrant
+        whenNotPaused
         onlyBorrower
     {
         borrowInternal(market, amount);
@@ -159,7 +161,12 @@ contract IBAgreementV3 is ReentrancyGuard {
      * @notice Borrow max from market with current price
      * @param market The market
      */
-    function borrowMax(IIToken market) external nonReentrant onlyBorrower {
+    function borrowMax(IIToken market)
+        external
+        nonReentrant
+        whenNotPaused
+        onlyBorrower
+    {
         (, , uint256 borrowBalance, ) = market.getAccountSnapshot(
             address(this)
         );
@@ -176,11 +183,16 @@ contract IBAgreementV3 is ReentrancyGuard {
      * @notice Withdraw the collateral if sufficient
      * @param amount The withdraw amount
      */
-    function withdraw(uint256 amount) external onlyBorrower {
-        require(
-            this.debtUSD() <= this.hypotheticalCollateralUSD(amount),
-            "undercollateralized"
-        );
+    function withdraw(uint256 amount) external nonReentrant onlyBorrower {
+        uint256 debt = this.debtUSD();
+        if (debt != 0) {
+            // If there is still debt, must be unpaused and undercollateralized to withdraw.
+            _requireNotPaused();
+            require(
+                debt <= this.hypotheticalCollateralUSD(amount),
+                "undercollateralized"
+            );
+        }
         collateral.safeTransfer(borrower, amount);
     }
 
@@ -316,6 +328,20 @@ contract IBAgreementV3 is ReentrancyGuard {
             );
             converters[_markets[i]] = IConverter(_converters[i]);
         }
+    }
+
+    /**
+     * @notice Pause the IB Agreement
+     */
+    function pause() external onlyExecutor {
+        _pause();
+    }
+
+    /**
+     * @notice Unpause the IB Agreement
+     */
+    function unpause() external onlyExecutor {
+        _unpause();
     }
 
     /**
