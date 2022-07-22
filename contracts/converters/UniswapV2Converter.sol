@@ -14,23 +14,12 @@ contract UniswapV2Converter is Ownable, IConverter {
     address private immutable _source;
     address private immutable _destination;
     address[] public paths;
-    address public immutable ibAgreement;
 
-    modifier onlyIBAgreement() {
-        require(msg.sender == ibAgreement, "caller is not IB agreement");
-        _;
-    }
-
-    constructor(
-        address _uniswapV2Router,
-        address[] memory _paths,
-        address _ibAgreement
-    ) {
+    constructor(address _uniswapV2Router, address[] memory _paths) {
         uniswapV2Router = IUniswapV2Router01(_uniswapV2Router);
         _source = _paths[0];
         _destination = _paths[_paths.length - 1];
         paths = _paths;
-        ibAgreement = _ibAgreement;
     }
 
     /* ========== VIEW FUNCTIONS ========== */
@@ -66,13 +55,12 @@ contract UniswapV2Converter is Ownable, IConverter {
     function convertExactTokensForTokens(uint256 amountIn, uint256 amountOutMin)
         external
         override
-        onlyIBAgreement
         returns (uint256)
     {
         uint256 amountOut = this.getAmountOut(amountIn);
         require(amountOut >= amountOutMin, "insufficient output amount");
 
-        IERC20(_source).safeTransferFrom(ibAgreement, address(this), amountIn);
+        IERC20(_source).safeTransferFrom(msg.sender, address(this), amountIn);
         IERC20(_source).safeIncreaseAllowance(
             address(uniswapV2Router),
             amountIn
@@ -81,7 +69,7 @@ contract UniswapV2Converter is Ownable, IConverter {
             amountIn,
             amountOutMin,
             paths,
-            ibAgreement,
+            msg.sender,
             block.timestamp + 3600 // 1 hour
         );
         return amountsOut[paths.length - 1];
@@ -90,13 +78,12 @@ contract UniswapV2Converter is Ownable, IConverter {
     function convertTokensForExactTokens(uint256 amountOut, uint256 amountInMax)
         external
         override
-        onlyIBAgreement
         returns (uint256)
     {
         uint256 amountIn = this.getAmountIn(amountOut);
         require(amountIn <= amountInMax, "excessive input amount");
 
-        IERC20(_source).safeTransferFrom(ibAgreement, address(this), amountIn);
+        IERC20(_source).safeTransferFrom(msg.sender, address(this), amountIn);
         IERC20(_source).safeIncreaseAllowance(
             address(uniswapV2Router),
             amountIn
@@ -105,7 +92,7 @@ contract UniswapV2Converter is Ownable, IConverter {
             amountOut,
             amountInMax,
             paths,
-            ibAgreement,
+            msg.sender,
             block.timestamp + 3600 // 1 hour
         );
         return amountsIn[0];

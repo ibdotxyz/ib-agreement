@@ -31,7 +31,7 @@ describe("Uniswap v2 converter", () => {
     perp = tokenFactory.attach(perpAddress);
     usdc = tokenFactory.attach(usdcAddress);
 
-    converter = await converterFactory.deploy(routerAddress, [perpAddress, wethAddress, usdcAddress], ibAgreementAddress);
+    converter = await converterFactory.deploy(routerAddress, [perpAddress, wethAddress, usdcAddress]);
     expect(await converter.source()).to.eq(perpAddress);
     expect(await converter.destination()).to.eq(usdcAddress);
 

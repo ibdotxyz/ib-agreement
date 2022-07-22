@@ -45,7 +45,7 @@ describe("IBAgreement", () => {
     const priceOracleFactory = await ethers.getContractFactory("MockPriceOralce");
     const comptrollerFactory = await ethers.getContractFactory("MockComptroller");
     const registryFactory = await ethers.getContractFactory("MockRegistry");
-    const priceFeedFactory = await ethers.getContractFactory("ChainlinkPriceFeed");
+    const priceFeedFactory = await ethers.getContractFactory("ChainlinkPriceFeedRegistry");
     const converterFactory = await ethers.getContractFactory("MockConverter");
 
     priceOracle = await priceOracleFactory.deploy();
@@ -179,6 +179,12 @@ describe("IBAgreement", () => {
       expect(await ibAgreement.debtUSD()).to.eq(0);
     });
 
+    it('failed to borrow for paused', async () => {
+      await ibAgreement.connect(executor).pause();
+      await expect(ibAgreement.connect(borrower).borrow(iToken.address, borrowAmount)).to.be.revertedWith('Pausable: paused');
+      expect(await ibAgreement.debtUSD()).to.eq(0);
+    });
+
     it('failed to borrow for unknown reason', async () => {
       await iToken.setBorrowFailed(true);
       await expect(ibAgreement.connect(borrower).borrow(iToken.address, borrowAmount)).to.be.revertedWith('borrow failed');
@@ -223,6 +229,12 @@ describe("IBAgreement", () => {
       expect(await ibAgreement.debtUSD()).to.eq(toWei('20000'));
     });
 
+    it('failed to borrow max for paused', async () => {
+      await ibAgreement.connect(executor).pause();
+      await expect(ibAgreement.connect(borrower).borrowMax(iToken.address)).to.be.revertedWith('Pausable: paused');
+      expect(await ibAgreement.debtUSD()).to.eq(0);
+    });
+
     it('repays successfully', async () => {
       await ibAgreement.connect(borrower).borrow(iToken.address, borrowAmount);
       expect(await ibAgreement.debtUSD()).to.eq(toWei('100'));
@@ -260,6 +272,13 @@ describe("IBAgreement", () => {
     });
 
     it('withdraws successfully', async () => {
+      const withdrawAmount = 0.5 * 1e8; // 0.5 wBTC
+      await ibAgreement.connect(borrower).borrow(iToken.address, borrowAmount);
+      await ibAgreement.connect(borrower).withdraw(withdrawAmount);
+      expect(await ibAgreement.collateralUSD()).to.eq(toWei('10000')); // CF: 50%
+    });
+
+    it('withdraws successfully (no debt)', async () => {
       await ibAgreement.connect(borrower).withdraw(collateralAmount);
       expect(await ibAgreement.collateralUSD()).to.eq(0);
     });
@@ -280,6 +299,13 @@ describe("IBAgreement", () => {
 
     it('failed to withdraw for non-borrower', async () => {
       await expect(ibAgreement.withdraw(collateralAmount)).to.be.revertedWith('caller is not the borrower');
+      expect(await ibAgreement.collateralUSD()).to.eq(toWei('20000')); // CF: 50%
+    });
+
+    it('failed to withdraw for paused', async () => {
+      await ibAgreement.connect(borrower).borrow(iToken.address, borrowAmount);
+      await ibAgreement.connect(executor).pause();
+      await expect(ibAgreement.connect(borrower).withdraw(collateralAmount)).to.be.revertedWith('Pausable: paused');
       expect(await ibAgreement.collateralUSD()).to.eq(toWei('20000')); // CF: 50%
     });
 
@@ -569,6 +595,20 @@ describe("IBAgreement", () => {
 
     it('failed to set converters for mismatch destination token', async () => {
       await expect(ibAgreement.connect(executor).setConverter([iToken.address, iToken2.address], [converter.address, converter.address])).to.be.revertedWith('mismatch destination token');
+    });
+  });
+
+  describe('pause / unpause', async () => {
+    it('pauses and unpauses successfully', async () => {
+      await ibAgreement.connect(executor).pause();
+      expect(await ibAgreement.paused()).to.eq(true);
+      await ibAgreement.connect(executor).unpause();
+      expect(await ibAgreement.paused()).to.eq(false);
+    });
+
+    it('failed to pause and unpause for non-executor', async () => {
+      await expect(ibAgreement.pause()).to.be.revertedWith('caller is not the executor');
+      await expect(ibAgreement.unpause()).to.be.revertedWith('caller is not the executor');
     });
   });
 
