@@ -19,19 +19,12 @@ contract UniswapV3Converter is Ownable, IConverter {
     uint24[] public fees;
     bytes public pathForExactIn;
     bytes public pathForExactOut;
-    address public immutable ibAgreement;
-
-    modifier onlyIBAgreement() {
-        require(msg.sender == ibAgreement, "caller is not IB agreement");
-        _;
-    }
 
     constructor(
         address _uniswapV3Router,
         address _uniswapV3Quoter,
         address[] memory _paths,
-        uint24[] memory _fees,
-        address _ibAgreement
+        uint24[] memory _fees
     ) {
         uniswapV3Router = ISwapRouter(_uniswapV3Router);
         uniswapV3Quoter = IQuoter(_uniswapV3Quoter);
@@ -39,7 +32,6 @@ contract UniswapV3Converter is Ownable, IConverter {
         _destination = _paths[_paths.length - 1];
         paths = _paths;
         fees = _fees;
-        ibAgreement = _ibAgreement;
 
         // encode the path
         for (uint256 i = 0; i < _paths.length; i++) {
@@ -83,13 +75,12 @@ contract UniswapV3Converter is Ownable, IConverter {
     function convertExactTokensForTokens(uint256 amountIn, uint256 amountOutMin)
         external
         override
-        onlyIBAgreement
         returns (uint256)
     {
         uint256 amountOut = this.getAmountOut(amountIn);
         require(amountOut >= amountOutMin, "insufficient output amount");
 
-        IERC20(_source).safeTransferFrom(ibAgreement, address(this), amountIn);
+        IERC20(_source).safeTransferFrom(msg.sender, address(this), amountIn);
         IERC20(_source).safeIncreaseAllowance(
             address(uniswapV3Router),
             amountIn
@@ -97,7 +88,7 @@ contract UniswapV3Converter is Ownable, IConverter {
         ISwapRouter.ExactInputParams memory params = ISwapRouter
             .ExactInputParams({
                 path: pathForExactIn,
-                recipient: ibAgreement,
+                recipient: msg.sender,
                 deadline: block.timestamp + 3600, // 1 hour
                 amountIn: amountIn,
                 amountOutMinimum: amountOutMin
@@ -108,13 +99,12 @@ contract UniswapV3Converter is Ownable, IConverter {
     function convertTokensForExactTokens(uint256 amountOut, uint256 amountInMax)
         external
         override
-        onlyIBAgreement
         returns (uint256)
     {
         uint256 amountIn = this.getAmountIn(amountOut);
         require(amountIn <= amountInMax, "excessive input amount");
 
-        IERC20(_source).safeTransferFrom(ibAgreement, address(this), amountIn);
+        IERC20(_source).safeTransferFrom(msg.sender, address(this), amountIn);
         IERC20(_source).safeIncreaseAllowance(
             address(uniswapV3Router),
             amountIn
@@ -122,7 +112,7 @@ contract UniswapV3Converter is Ownable, IConverter {
         ISwapRouter.ExactOutputParams memory params = ISwapRouter
             .ExactOutputParams({
                 path: pathForExactOut,
-                recipient: ibAgreement,
+                recipient: msg.sender,
                 deadline: block.timestamp + 3600, // 1 hour
                 amountOut: amountOut,
                 amountInMaximum: amountInMax
