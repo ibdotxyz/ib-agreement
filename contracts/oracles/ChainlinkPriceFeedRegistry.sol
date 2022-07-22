@@ -6,11 +6,11 @@ import "@chainlink/contracts/src/v0.8/interfaces/FeedRegistryInterface.sol";
 import "@chainlink/contracts/src/v0.8/Denominations.sol";
 import "../interfaces/IPriceFeed.sol";
 
-contract ChainlinkPriceFeed is IPriceFeed {
-    address public registry;
-    address public token;
-    address public base;
-    address public quote;
+contract ChainlinkPriceFeedRegistry is IPriceFeed {
+    address public immutable registry;
+    address public immutable token;
+    address public immutable base;
+    address public immutable quote;
 
     /**
      * @dev Sets the values for {registry}, {token}, {base}, and {quote}.
