@@ -43,7 +43,7 @@ contract IBAgreementFactory is Ownable {
         return address(ibAgreement);
     }
 
-    function count() external view returns (uint256) {
-        return ibAgreements.length;
+    function getAllAgreements() external view returns (address[] memory) {
+        return ibAgreements;
     }
 }
