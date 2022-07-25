@@ -58,6 +58,7 @@ describe("IBAgreementFactory", () => {
   it('creates ibAgreement', async () => {
     await ibAgreementFactory.create(executorAddress, borrowerAddress, governorAddress, collateral.address, priceFeed.address, collateralFactor, liquidationFactor, closeFactor, collateralCap);
 
-    expect(await ibAgreementFactory.count()).to.eq(1);
+    const allAgreements = await ibAgreementFactory.getAllAgreements();
+    expect(allAgreements.length).to.eq(1);
   });
 });
