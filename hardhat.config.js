@@ -2,6 +2,7 @@
  * @type import('hardhat/config').HardhatUserConfig
  */
 require("@nomiclabs/hardhat-waffle");
+require("@nomiclabs/hardhat-etherscan");
 require('hardhat-deploy');
 require('dotenv').config();
 
@@ -41,5 +42,8 @@ module.exports = {
       avalanche: '0x2eE80614Ccbc5e28654324a66A396458Fa5cD7Cc',
       op: '0xE0B57FEEd45e7D908f2d0DaCd26F113Cf26715BF'
     }
+  },
+  etherscan: {
+    apiKey: process.env.OPSCAN_API_KEY == undefined ? '' : process.env.OPSCAN_API_KEY
   }
 };

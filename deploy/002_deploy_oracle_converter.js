@@ -7,8 +7,6 @@ module.exports = async({
   const {deploy} = deployments;
   const {deployer} = await getNamedAccounts();
 
-  // the following address are on optimism
-  const ibagreement = ''
   const uniswapV3Router = '0xE592427A0AEce92De3Edee1F18E0157C05861564'
   const uniswapV3Quoter = '0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6'
 
@@ -18,12 +16,26 @@ module.exports = async({
   const paths = [PERP, WETH, USDC]
   const fees = [3000, 500]
 
+  const collateralSymbol = 'PERP'
+  const collateralToken = PERP
+  const priceAggregator = '0xA12CDDd8e986AF9288ab31E58C60e65F2987fB13'
 
-  await deploy('UniswapV3Converter', {
+  await deploy(`${collateralSymbol}PriceFeed`, {
     from: deployer,
-    args: [uniswapV3Router, uniswapV3Quoter, paths, fees, ibagreement],
+    contract: 'ChainlinkPriceFeedAggregator',
+    args: [
+      priceAggregator,
+      collateralToken
+    ],
+    log: true
+  })
+
+  await deploy(`${collateralSymbol}Converter`, {
+    from: deployer,
+    contract: 'UniswapV3Converter',
+    args: [uniswapV3Router, uniswapV3Quoter, paths, fees],
     log: true
   });
 };
 
-module.exports.tags = ['UniswapV3Converter'];
+module.exports.tags = ['oracle', 'converter'];
