@@ -1,0 +1,133 @@
+{
+  "address": "0xEeB3981D5587C185bD809D74B3Ddb6C3b0363099",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_aggregator",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_token",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [],
+      "name": "aggregator",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getPrice",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getToken",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "token",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "transactionHash": "0xa6a5f9a93145a0cf79bf6840022d48701cab43fbc68c3a47fc9bf340d2c5c632",
+  "receipt": {
+    "to": null,
+    "from": "0x1BA608D6a354fbEb41FD7cC799e7f09b2612AB26",
+    "contractAddress": "0xEeB3981D5587C185bD809D74B3Ddb6C3b0363099",
+    "transactionIndex": 0,
+    "gasUsed": "316263",
+    "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "blockHash": "0x30ebf21dc15a337bf581b93cde280f6adf4d5d1a6fd7d5e3a4a5d9ea24835704",
+    "transactionHash": "0xa6a5f9a93145a0cf79bf6840022d48701cab43fbc68c3a47fc9bf340d2c5c632",
+    "logs": [],
+    "blockNumber": 15355523,
+    "cumulativeGasUsed": "316263",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [
+    "0xA12CDDd8e986AF9288ab31E58C60e65F2987fB13",
+    "0x9e1028F5F1D5eDE59748FFceE5532509976840E0"
+  ],
+  "numDeployments": 1,
+  "solcInputHash": "eb99769ab07cc47b68caa4662eb26299",
+  "metadata": "{\"compiler\":{\"version\":\"0.8.2+commit.661d1103\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_aggregator\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_token\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"inputs\":[],\"name\":\"aggregator\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getPrice\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getToken\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"token\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{\"constructor\":{\"details\":\"Sets the values for {aggregator}, and {token}. We retrieve price from ChainLink aggregator.\"},\"getPrice()\":{\"returns\":{\"_0\":\"the price, scaled by 1e18\"}},\"getToken()\":{\"returns\":{\"_0\":\"the token address\"}}},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"getPrice()\":{\"notice\":\"Return the token latest price in USD.\"},\"getToken()\":{\"notice\":\"Return the token. It should be the collateral token address from IB agreement.\"}},\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/oracles/ChainlinkPriceFeedAggregator.sol\":\"ChainlinkPriceFeedAggregator\"},\"evmVersion\":\"istanbul\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[]},\"sources\":{\"@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.0;\\n\\ninterface AggregatorV3Interface {\\n  function decimals() external view returns (uint8);\\n\\n  function description() external view returns (string memory);\\n\\n  function version() external view returns (uint256);\\n\\n  // getRoundData and latestRoundData should both raise \\\"No data present\\\"\\n  // if they do not have data to report, instead of returning unset values\\n  // which could be misinterpreted as actual reported values.\\n  function getRoundData(uint80 _roundId)\\n    external\\n    view\\n    returns (\\n      uint80 roundId,\\n      int256 answer,\\n      uint256 startedAt,\\n      uint256 updatedAt,\\n      uint80 answeredInRound\\n    );\\n\\n  function latestRoundData()\\n    external\\n    view\\n    returns (\\n      uint80 roundId,\\n      int256 answer,\\n      uint256 startedAt,\\n      uint256 updatedAt,\\n      uint80 answeredInRound\\n    );\\n}\\n\",\"keccak256\":\"0xf2b6c9adb3552254df1445b73563cf014434ff5e78663e9b961b6c059506ceb5\",\"license\":\"MIT\"},\"contracts/interfaces/IPriceFeed.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\n\\npragma solidity ^0.8.0;\\n\\ninterface IPriceFeed {\\n    function getToken() external view returns (address);\\n\\n    function getPrice() external view returns (uint256);\\n}\\n\",\"keccak256\":\"0x5ccc79d885d046a93dad156b1c0ab0721894acb69e9cde9ee5628d1e8c0a13b4\",\"license\":\"MIT\"},\"contracts/oracles/ChainlinkPriceFeedAggregator.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\n\\npragma solidity ^0.8.0;\\n\\nimport \\\"@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol\\\";\\nimport \\\"../interfaces/IPriceFeed.sol\\\";\\n\\ncontract ChainlinkPriceFeedAggregator is IPriceFeed {\\n    address public immutable aggregator;\\n    address public immutable token;\\n\\n    /**\\n     * @dev Sets the values for {aggregator}, and {token}.\\n     *\\n     * We retrieve price from ChainLink aggregator.\\n     */\\n    constructor(address _aggregator, address _token) {\\n        aggregator = _aggregator;\\n        token = _token;\\n    }\\n\\n    /**\\n     * @notice Return the token. It should be the collateral token address from IB agreement.\\n     * @return the token address\\n     */\\n    function getToken() external view override returns (address) {\\n        return token;\\n    }\\n\\n    /**\\n     * @notice Return the token latest price in USD.\\n     * @return the price, scaled by 1e18\\n     */\\n    function getPrice() external view override returns (uint256) {\\n        (, int256 price, , , ) = AggregatorV3Interface(aggregator)\\n            .latestRoundData();\\n        require(price > 0, \\\"invalid price\\\");\\n\\n        // Extend the decimals to 1e18.\\n        return\\n            uint256(price) *\\n            10**(18 - uint256(AggregatorV3Interface(aggregator).decimals()));\\n    }\\n}\\n\",\"keccak256\":\"0xc84270d5faf088c47ad9bb15eb9b9326f5db81d34fc6ab01fd7ecf11ca89528b\",\"license\":\"MIT\"}},\"version\":1}",
+  "bytecode": "0x60c060405234801561001057600080fd5b5060405161058f38038061058f83398101604081905261002f91610069565b6001600160601b0319606092831b8116608052911b1660a05261009b565b80516001600160a01b038116811461006457600080fd5b919050565b6000806040838503121561007b578182fd5b6100848361004d565b91506100926020840161004d565b90509250929050565b60805160601c60a05160601c6104b86100d7600039600081816053015260d201526000818160950152818160f901526101d401526104b86000f3fe608060405234801561001057600080fd5b506004361061004c5760003560e01c806321df0da714610051578063245a7bfc1461009057806398d5fdca146100b7578063fc0c546a146100cd575b600080fd5b7f00000000000000000000000000000000000000000000000000000000000000005b6040516001600160a01b0390911681526020015b60405180910390f35b6100737f000000000000000000000000000000000000000000000000000000000000000081565b6100bf6100f4565b604051908152602001610087565b6100737f000000000000000000000000000000000000000000000000000000000000000081565b6000807f00000000000000000000000000000000000000000000000000000000000000006001600160a01b031663feaf968c6040518163ffffffff1660e01b815260040160a06040518083038186803b15801561015057600080fd5b505afa158015610164573d6000803e3d6000fd5b505050506040513d601f19601f8201168201806040525081019061018891906102ab565b505050915050600081136101d25760405162461bcd60e51b815260206004820152600d60248201526c696e76616c696420707269636560981b604482015260640160405180910390fd5b7f00000000000000000000000000000000000000000000000000000000000000006001600160a01b031663313ce5676040518163ffffffff1660e01b815260040160206040518083038186803b15801561022b57600080fd5b505afa15801561023f573d6000803e3d6000fd5b505050506040513d601f19601f8201168201806040525081019061026391906102fa565b6102719060ff166012610455565b61027c90600a610368565b6102869082610436565b91505090565b805169ffffffffffffffffffff811681146102a657600080fd5b919050565b600080600080600060a086880312156102c2578081fd5b6102cb8661028c565b94506020860151935060408601519250606086015191506102ee6080870161028c565b90509295509295909350565b60006020828403121561030b578081fd5b815160ff8116811461031b578182fd5b9392505050565b80825b6001808611610334575061035f565b8187048211156103465761034661046c565b8086161561035357918102915b9490941c938002610325565b94509492505050565b600061031b60001984846000826103815750600161031b565b8161038e5750600061031b565b81600181146103a457600281146103ae576103db565b600191505061031b565b60ff8411156103bf576103bf61046c565b6001841b9150848211156103d5576103d561046c565b5061031b565b5060208310610133831016604e8410600b841016171561040e575081810a838111156104095761040961046c565b61031b565b61041b8484846001610322565b80860482111561042d5761042d61046c565b02949350505050565b60008160001904831182151516156104505761045061046c565b500290565b6000828210156104675761046761046c565b500390565b634e487b7160e01b600052601160045260246000fdfea264697066735822122046351beb2b3ae979e99c54d5215d64ba7496c79ca2ad0283e528b1d2b6a9f57a64736f6c63430008020033",
+  "deployedBytecode": "0x608060405234801561001057600080fd5b506004361061004c5760003560e01c806321df0da714610051578063245a7bfc1461009057806398d5fdca146100b7578063fc0c546a146100cd575b600080fd5b7f00000000000000000000000000000000000000000000000000000000000000005b6040516001600160a01b0390911681526020015b60405180910390f35b6100737f000000000000000000000000000000000000000000000000000000000000000081565b6100bf6100f4565b604051908152602001610087565b6100737f000000000000000000000000000000000000000000000000000000000000000081565b6000807f00000000000000000000000000000000000000000000000000000000000000006001600160a01b031663feaf968c6040518163ffffffff1660e01b815260040160a06040518083038186803b15801561015057600080fd5b505afa158015610164573d6000803e3d6000fd5b505050506040513d601f19601f8201168201806040525081019061018891906102ab565b505050915050600081136101d25760405162461bcd60e51b815260206004820152600d60248201526c696e76616c696420707269636560981b604482015260640160405180910390fd5b7f00000000000000000000000000000000000000000000000000000000000000006001600160a01b031663313ce5676040518163ffffffff1660e01b815260040160206040518083038186803b15801561022b57600080fd5b505afa15801561023f573d6000803e3d6000fd5b505050506040513d601f19601f8201168201806040525081019061026391906102fa565b6102719060ff166012610455565b61027c90600a610368565b6102869082610436565b91505090565b805169ffffffffffffffffffff811681146102a657600080fd5b919050565b600080600080600060a086880312156102c2578081fd5b6102cb8661028c565b94506020860151935060408601519250606086015191506102ee6080870161028c565b90509295509295909350565b60006020828403121561030b578081fd5b815160ff8116811461031b578182fd5b9392505050565b80825b6001808611610334575061035f565b8187048211156103465761034661046c565b8086161561035357918102915b9490941c938002610325565b94509492505050565b600061031b60001984846000826103815750600161031b565b8161038e5750600061031b565b81600181146103a457600281146103ae576103db565b600191505061031b565b60ff8411156103bf576103bf61046c565b6001841b9150848211156103d5576103d561046c565b5061031b565b5060208310610133831016604e8410600b841016171561040e575081810a838111156104095761040961046c565b61031b565b61041b8484846001610322565b80860482111561042d5761042d61046c565b02949350505050565b60008160001904831182151516156104505761045061046c565b500290565b6000828210156104675761046761046c565b500390565b634e487b7160e01b600052601160045260246000fdfea264697066735822122046351beb2b3ae979e99c54d5215d64ba7496c79ca2ad0283e528b1d2b6a9f57a64736f6c63430008020033",
+  "devdoc": {
+    "kind": "dev",
+    "methods": {
+      "constructor": {
+        "details": "Sets the values for {aggregator}, and {token}. We retrieve price from ChainLink aggregator."
+      },
+      "getPrice()": {
+        "returns": {
+          "_0": "the price, scaled by 1e18"
+        }
+      },
+      "getToken()": {
+        "returns": {
+          "_0": "the token address"
+        }
+      }
+    },
+    "version": 1
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {
+      "getPrice()": {
+        "notice": "Return the token latest price in USD."
+      },
+      "getToken()": {
+        "notice": "Return the token. It should be the collateral token address from IB agreement."
+      }
+    },
+    "version": 1
+  },
+  "storageLayout": {
+    "storage": [],
+    "types": null
+  }
+}

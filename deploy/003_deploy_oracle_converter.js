@@ -36,6 +36,13 @@ module.exports = async({
     args: [uniswapV3Router, uniswapV3Quoter, paths, fees],
     log: true
   });
+
+  // await deploy(`Simple${collateralSymbol}PriceFeed`, {
+  //   from: deployer,
+  //   contract: 'SimplePriceFeed',
+  //   args: [collateralToken],
+  //   log: true
+  // });
 };
 
 module.exports.tags = ['oracle', 'converter'];
