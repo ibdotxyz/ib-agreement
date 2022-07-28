@@ -27,6 +27,21 @@ contract IBAgreementV3 is ReentrancyGuard, Pausable {
     IPriceFeed public priceFeed;
     mapping(IIToken => IConverter) public converters;
 
+    event Liquidated(
+        address collateral,
+        uint256 collateralAmount,
+        address market,
+        uint256 repayAmount
+    );
+    event CollateralCapUpdated(uint256 oldCap, uint256 newCap);
+    event PriceFeedUpdated(address oldFeed, address newFeed);
+    event ConverterUpdated(
+        address market,
+        address oldConverter,
+        address newConverter
+    );
+    event TokenSeized(address token, uint256 amount);
+
     modifier onlyBorrower() {
         require(msg.sender == borrower, "caller is not the borrower");
         _;
@@ -235,6 +250,7 @@ contract IBAgreementV3 is ReentrancyGuard, Pausable {
             "seize collateral not allow"
         );
         token.safeTransfer(executor, amount);
+        emit TokenSeized(address(token), amount);
     }
 
     /**
@@ -264,6 +280,13 @@ contract IBAgreementV3 is ReentrancyGuard, Pausable {
         uint256 amountOut = converters[market].convertExactTokensForTokens(
             collateralAmount,
             repayAmountMin
+        );
+
+        emit Liquidated(
+            address(collateral),
+            collateralAmount,
+            address(market),
+            amountOut
         );
 
         // Repay the debts.
@@ -302,6 +325,13 @@ contract IBAgreementV3 is ReentrancyGuard, Pausable {
             collateralAmountMax
         );
 
+        emit Liquidated(
+            address(collateral),
+            amountIn,
+            address(market),
+            repayAmount
+        );
+
         // Repay the debts.
         repayInternal(market, repayAmount);
     }
@@ -326,7 +356,14 @@ contract IBAgreementV3 is ReentrancyGuard, Pausable {
                 _converters[i].destination() == _markets[i].underlying(),
                 "mismatch destination token"
             );
+            address oldConverter = address(converters[_markets[i]]);
             converters[_markets[i]] = IConverter(_converters[i]);
+
+            emit ConverterUpdated(
+                address(_markets[i]),
+                oldConverter,
+                address(_converters[i])
+            );
         }
     }
 
@@ -349,7 +386,10 @@ contract IBAgreementV3 is ReentrancyGuard, Pausable {
      * @param _collateralCap The new cap
      */
     function setCollateralCap(uint256 _collateralCap) external onlyGovernor {
+        uint256 oldCap = collateralCap;
         collateralCap = _collateralCap;
+
+        emit CollateralCapUpdated(oldCap, _collateralCap);
     }
 
     /**
@@ -362,7 +402,9 @@ contract IBAgreementV3 is ReentrancyGuard, Pausable {
             "mismatch price feed"
         );
 
+        address oldFeed = address(priceFeed);
         priceFeed = IPriceFeed(_priceFeed);
+        emit PriceFeedUpdated(oldFeed, _priceFeed);
     }
 
     /* Internal functions */

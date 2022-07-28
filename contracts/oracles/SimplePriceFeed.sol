@@ -7,7 +7,7 @@ import "../interfaces/IPriceFeed.sol";
 
 contract SimplePriceFeed is Ownable, IPriceFeed {
     address public immutable token;
-    uint internal price;
+    uint256 internal price;
 
     /**
      * @dev Sets the values for {token}.
@@ -19,7 +19,7 @@ contract SimplePriceFeed is Ownable, IPriceFeed {
     /**
      * @notice Set price
      */
-    function setPrice(uint _price) external {
+    function setPrice(uint256 _price) external {
         price = _price;
     }
 
