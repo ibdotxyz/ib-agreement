@@ -2,30 +2,30 @@
 
 ## Concept
 
-The IBAgreement provides a standard contract to achieve DAO-to-DAO loans. It currently only works on Iron Bank since it should leverage the credit limit.
+The IBAgreement provides a standard contract to achieve DAO-to-DAO loans. Currently IBAgreement only works in Iron Bank because it leverages Credit Limit, which is only available in Iron Bank.
 
 ## Roles
 
-There are three roles in this agreement.
+There are three roles in this agreement:
 
-* The borrower: The loan applicant
-* The executor: The loaner, Iron Bank
-* The governor: The joint admin from both the borrower and the loaner.
+* Borrower: loanee, typically a defi protocol
+* Executor: loaner, Iron Bank
+* Governor: The joint admins from both Borrower and Executor.
 
 > The governor can be a 2-2 Gnosis multisig contract and each party has one of the signer. It could set the new price feed of the collateral or the new collateral cap. Changing these values will require both parties to agree on since they might cause an unexpected liquidation.
 
 ## Parameters
 
-There are some parameters in one IBAgreement.
+Here are the parameters in one IBAgreement.
 
-| Name               | Description                                                | Updatable             |
-|--------------------|------------------------------------------------------------|-----------------------|
-| collateral factor  | The ratio of being used as collateral                      | No                    |
-| liquidation factor | The ratio that the collateral could be liquidated          | No                    |
-| close factor       | The ratio of how much collateral could be liquidated once  | No                    |
-| collateral cap     | How much balance being treated as collateral, 0 for no cap | Yes, through governor |
+| Name               | Description                                                                    | Updatable             |
+|--------------------|--------------------------------------------------------------------------------|-----------------------|
+| collateral factor  | The ratio of maximum borrowing power to collateral                             | No                    |
+| liquidation factor | The ratio of borrowing value to collateral value where liquidation can happen  | No                    |
+| close factor       | The percentage of how much collateral could be liquidated at once              | No                    |
+| collateral cap     | The maximum amount of collateral token, 0 for no cap                           | Yes, through governor |
 
-> For example, an applicant selects wBTC as collateral and deposits 1 wBTC. The price of wBTC is $40,000, collateral factor (CF) is 50% and liquidation factor (LF) is 75%. Then this IB agreement could borrow assets up to $20,000 worth. If the borrow assets worth more than $30,000, a liquidation could occur. The close factor is 50% meaning 50% of collateral could be liquidated in one liquidation.
+> For example, a Borrower chooses WBTC as collateral and deposits 1 WBTC. The price of WBTC is $40,000, Collateral Factor (CF) is 50% and Liquidation Factor (LF) is 75%. Then the IB agreement allows to borrow assets up to $20,000 worth. If WBTC price is the same but the value of borrowing assets increase to more than $30,000, a liquidation could occur. The close factor is 50%, meaning 50% of collateral could be liquidated in one liquidation.
 
 ## Functions
 
@@ -59,10 +59,11 @@ Check the current collateral value that could be considered to prevent the liqui
 liquidationThreshold = collateral * liquidationFactor
 ```
 
+---
+
 ### Borrower Functions
 
 #### borrow
-
 Borrow assets with amount from Iron Bank.
 
 #### borrowMax
@@ -80,6 +81,8 @@ Repay the debt with amount.
 #### repayFull
 
 Fully repay the debt.
+
+---
 
 ### Executor Functions
 
@@ -106,6 +109,8 @@ Pause the IBAgreement. If the IBAgreement is paused, borrowers can't borrow and 
 #### unpause
 
 Unpause the IBAgreement.
+
+---
 
 ### Governor Functions
 
