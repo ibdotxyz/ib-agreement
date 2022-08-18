@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol";
 import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import "@uniswap/v3-periphery/contracts/interfaces/IQuoter.sol";
 import "../interfaces/IConverter.sol";
@@ -77,14 +78,13 @@ contract UniswapV3Converter is Ownable, IConverter {
         override
         returns (uint256)
     {
-        uint256 amountOut = this.getAmountOut(amountIn);
-        require(amountOut >= amountOutMin, "insufficient output amount");
-
-        IERC20(_source).safeTransferFrom(msg.sender, address(this), amountIn);
-        IERC20(_source).safeIncreaseAllowance(
-            address(uniswapV3Router),
+        TransferHelper.safeTransferFrom(
+            _source,
+            msg.sender,
+            address(this),
             amountIn
         );
+        TransferHelper.safeApprove(_source, address(uniswapV3Router), amountIn);
         ISwapRouter.ExactInputParams memory params = ISwapRouter
             .ExactInputParams({
                 path: pathForExactIn,
@@ -101,13 +101,16 @@ contract UniswapV3Converter is Ownable, IConverter {
         override
         returns (uint256)
     {
-        uint256 amountIn = this.getAmountIn(amountOut);
-        require(amountIn <= amountInMax, "excessive input amount");
-
-        IERC20(_source).safeTransferFrom(msg.sender, address(this), amountIn);
-        IERC20(_source).safeIncreaseAllowance(
+        TransferHelper.safeTransferFrom(
+            _source,
+            msg.sender,
+            address(this),
+            amountInMax
+        );
+        TransferHelper.safeApprove(
+            _source,
             address(uniswapV3Router),
-            amountIn
+            amountInMax
         );
         ISwapRouter.ExactOutputParams memory params = ISwapRouter
             .ExactOutputParams({
@@ -117,7 +120,17 @@ contract UniswapV3Converter is Ownable, IConverter {
                 amountOut: amountOut,
                 amountInMaximum: amountInMax
             });
-        return uniswapV3Router.exactOutput(params);
+        uint256 amountIn = uniswapV3Router.exactOutput(params);
+        if (amountIn < amountInMax) {
+            TransferHelper.safeApprove(_source, address(uniswapV3Router), 0);
+            TransferHelper.safeTransferFrom(
+                _source,
+                address(this),
+                msg.sender,
+                amountInMax - amountIn
+            );
+        }
+        return amountIn;
     }
 
     /* ========== ADMIN FUNCTIONS ========== */
