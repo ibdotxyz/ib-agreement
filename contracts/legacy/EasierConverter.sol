@@ -38,6 +38,14 @@ contract EasyConverter {
         destinationToken = _destinationToken;
     }
 
+    function source() external view returns (address) {
+        return sourceToken;
+    }
+
+    function destination() external view returns (address) {
+        return destinationToken;
+    }
+
     function convert(uint256 amount) external {
         require(
             IERC20(sourceToken).balanceOf(address(this)) >= amount,
